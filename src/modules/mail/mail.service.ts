@@ -94,49 +94,26 @@ The Pharmbrew Team`;
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to Pharmbrew</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }
-    .card { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 10px; border: 1px solid #cbd5e1; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-    .brand { font-size: 22px; font-weight: 800; color: #0284c7; letter-spacing: -0.5px; margin-bottom: 20px; }
-    .greeting { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 12px; }
-    .desc { font-size: 14px; line-height: 1.6; color: #334155; margin-bottom: 24px; }
-    .credentials { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 24px; }
-    .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #e2e8f0; font-size: 14px; }
-    .row:last-child { border-bottom: none; }
-    .label { font-weight: 600; color: #64748b; }
-    .value { font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; font-weight: 700; color: #0f172a; font-size: 15px; }
-    .notice { font-size: 13px; color: #b45309; background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; padding: 12px; line-height: 1.5; margin-bottom: 24px; }
-    .footer { font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px; }
-  </style>
 </head>
-<body>
-  <div class="card">
-    <div class="brand">Pharmbrew Workspace</div>
-    <div class="greeting">Hello ${firstName},</div>
-    <div class="desc">
-      Your administrative account has been successfully provisioned. You can now access your Pharmbrew dashboard using the credentials below:
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111827; margin: 0; padding: 20px 0;">
+  <div style="max-width: 560px; margin: 0 auto; padding: 0 16px;">
+    <p style="margin-bottom: 16px;">Hello ${firstName},</p>
+
+    <p style="margin-bottom: 16px;">
+      An account has been created for you on the Pharmbrew platform. You can sign in using the temporary credentials below:
+    </p>
+
+    <div style="margin: 24px 0; padding: 12px 16px; background-color: #f9fafb; border-left: 3px solid #0284c7; font-size: 15px; line-height: 1.8;">
+      <div><strong>Email:</strong> ${to}</div>
+      <div><strong>Temporary Password:</strong> <code style="font-family: Consolas, 'Courier New', monospace; font-size: 16px; font-weight: 700; color: #0f172a; background-color: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${temporaryPassword}</code></div>
     </div>
 
-    <div class="credentials">
-      <div class="row">
-        <span class="label">Email Address:</span>
-        <span class="value">${to}</span>
-      </div>
-      <div class="row">
-        <span class="label">Temporary Password:</span>
-        <span class="value">${temporaryPassword}</span>
-      </div>
-    </div>
+    <p style="margin-bottom: 16px; color: #4b5563; font-size: 14px;">
+      For security compliance, please sign in and update your password immediately upon your first login.
+    </p>
 
-    <div class="notice">
-      &#9888; <strong>Security Reminder:</strong> This temporary password is for initial access. Please change your password immediately after signing in.
-    </div>
-
-    <div class="footer">
-      &copy; ${new Date().getFullYear()} Pharmbrew Platform. All rights reserved.<br>
-      This is an automated administrative notification. Please do not reply directly to this message.
-    </div>
+    <p style="margin-top: 24px; margin-bottom: 4px;">Best regards,</p>
+    <p style="margin-top: 0; font-weight: 600; color: #0284c7;">The Pharmbrew Team</p>
   </div>
 </body>
 </html>`;
