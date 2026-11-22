@@ -8,6 +8,16 @@ export type UserDocument = HydratedDocument<User>;
 export class User {
   @Prop({
     type: String,
+    unique: true,
+    sparse: true,
+    uppercase: true,
+    trim: true,
+    index: true,
+  })
+  humanId?: string;
+
+  @Prop({
+    type: String,
     required: true,
     unique: true,
     lowercase: true,
@@ -54,6 +64,19 @@ export class User {
     default: null,
   })
   hashedRefreshToken: string | null;
+
+  @Prop({
+    type: String,
+    default: null,
+    index: true,
+  })
+  resetPasswordTokenHash: string | null;
+
+  @Prop({
+    type: Date,
+    default: null,
+  })
+  resetPasswordExpiresAt: Date | null;
 
   createdAt?: Date;
   updatedAt?: Date;

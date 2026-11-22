@@ -18,6 +18,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SeedSuperAdminDto } from './dto/seed-super-admin.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -39,9 +41,13 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'User login returning access and refresh tokens' })
+  @ApiOperation({
+    summary: 'User login with email or Human ID returning JWT pair',
+    description:
+      'Allows authentication using either the registered email address or human-readable User ID (e.g. PB-10492).',
+  })
   @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({ status: 401, description: 'Invalid email or password' })
+  @ApiResponse({ status: 401, description: 'Invalid email/ID or password' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
@@ -56,6 +62,42 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   refreshTokens(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshTokens(dto.refreshToken);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Request password reset token via registered email',
+    description:
+      'Universal forgot password endpoint for all roles. Accepts registered email or human-readable ID and dispatches a single-use 15-minute token via SMTP.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset email initiated (generic response)',
+  })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reset password using single-use email token',
+    description:
+      'Validates the single-use token and expiration, updates the user password, and revokes all active refresh tokens.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password successfully reset',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired password reset token',
+  })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 
   @Post('logout')

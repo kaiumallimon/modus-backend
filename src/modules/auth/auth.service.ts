@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -8,10 +9,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
+import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { Role } from '../users/enums/role.enum';
 import { SeedSuperAdminDto } from './dto/seed-super-admin.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { MailService } from '../mail/mail.service';
 
 export interface AuthTokens {
   accessToken: string;
@@ -24,6 +29,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly mailService: MailService,
   ) {}
 
   async hashData(data: string): Promise<string> {
@@ -49,8 +55,10 @@ export class AuthService {
       role,
     };
 
-    const accessSecret = this.configService.getOrThrow<string>('jwt.accessSecret');
-    const refreshSecret = this.configService.getOrThrow<string>('jwt.refreshSecret');
+    const accessSecret =
+      this.configService.getOrThrow<string>('jwt.accessSecret');
+    const refreshSecret =
+      this.configService.getOrThrow<string>('jwt.refreshSecret');
     const accessExpiresIn =
       this.configService.get<string>('jwt.accessExpiresIn') ||
       this.configService.get<string>('jwt.accessExpireIn') ||
@@ -90,8 +98,10 @@ export class AuthService {
       throw new ConflictException('Email is already registered');
     }
 
+    const humanId = await this.usersService.generateUniqueHumanId();
     const passwordHash = await this.hashData(dto.password);
     const newUser = await this.usersService.create({
+      humanId,
       email: dto.email,
       passwordHash,
       firstName: dto.firstName,
@@ -117,6 +127,7 @@ export class AuthService {
       message: 'Initial Super Admin created successfully',
       user: {
         id: newUser._id.toString(),
+        humanId: newUser.humanId,
         email: newUser.email,
         firstName: newUser.firstName,
         lastName: newUser.lastName,
@@ -127,9 +138,14 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.usersService.findByEmail(dto.email);
+    const lookupKey = (dto.identifier || dto.email || '').trim();
+    if (!lookupKey) {
+      throw new UnauthorizedException('Email or User ID is required');
+    }
+
+    const user = await this.usersService.findByIdentifier(lookupKey);
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid email/ID or password');
     }
 
     const isPasswordValid = await this.verifyHash(
@@ -137,7 +153,7 @@ export class AuthService {
       dto.password,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid email/ID or password');
     }
 
     const tokens = await this.generateTokens(
@@ -155,6 +171,7 @@ export class AuthService {
     return {
       user: {
         id: user._id.toString(),
+        humanId: user.humanId,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -186,7 +203,10 @@ export class AuthService {
 
     if (!isRefreshTokenValid) {
       // Refresh token reuse / tampering detected: invalidate stored token immediately
-      await this.usersService.updateHashedRefreshToken(user._id.toString(), null);
+      await this.usersService.updateHashedRefreshToken(
+        user._id.toString(),
+        null,
+      );
       throw new UnauthorizedException(
         'Access denied: refresh token reuse detected or invalid token',
       );
@@ -215,6 +235,77 @@ export class AuthService {
     };
   }
 
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const genericResponse = {
+      message:
+        'If an active account with that email or User ID exists, a password reset token has been sent to the registered email address.',
+    };
+
+    const user = await this.usersService.findByIdentifier(dto.identifier);
+    if (!user || !user.isActive) {
+      return genericResponse;
+    }
+
+    // Generate cryptographically secure random token (64 hex characters)
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    // Store only the SHA-256 hash of the token
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+
+    user.resetPasswordTokenHash = tokenHash;
+    user.resetPasswordExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiration
+    await user.save();
+
+    // Send email with the unhashed token (never log or reveal token in console)
+    await this.mailService.sendPasswordResetEmail(
+      user.email,
+      user.firstName,
+      rawToken,
+    );
+
+    return genericResponse;
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(dto.token.trim())
+      .digest('hex');
+
+    const user = await this.usersService.findByResetTokenHash(tokenHash);
+    if (!user || !user.resetPasswordExpiresAt) {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    if (new Date() > user.resetPasswordExpiresAt) {
+      // Invalidate expired token
+      user.resetPasswordTokenHash = null;
+      user.resetPasswordExpiresAt = null;
+      await user.save();
+      throw new BadRequestException(
+        'Password reset token has expired. Please request a new one.',
+      );
+    }
+
+    // Single-use: immediately clear the reset token
+    user.resetPasswordTokenHash = null;
+    user.resetPasswordExpiresAt = null;
+
+    // Hash new password with Argon2
+    user.passwordHash = await this.hashData(dto.newPassword);
+
+    // Revoke all active login refresh tokens
+    user.hashedRefreshToken = null;
+    await user.save();
+
+    return {
+      message:
+        'Password has been reset successfully. You may now log in with your new password.',
+    };
+  }
+
   async getProfile(userId: string) {
     const user = await this.usersService.findById(userId);
     if (!user) {
@@ -223,6 +314,7 @@ export class AuthService {
 
     return {
       id: user._id.toString(),
+      humanId: user.humanId,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,

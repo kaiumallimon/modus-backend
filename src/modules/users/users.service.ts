@@ -18,6 +18,7 @@ import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { MailService } from '../mail/mail.service';
 import { generateHumanReadablePassword } from './utils/password.util';
+import { generateHumanId } from './utils/human-id.util';
 
 export interface PaginatedUsersResult {
   data: UserDocument[];
@@ -41,12 +42,48 @@ export class UsersService {
     private readonly mailService: MailService,
   ) {}
 
+  async generateUniqueHumanId(): Promise<string> {
+    for (let attempts = 0; attempts < 15; attempts++) {
+      const candidate = generateHumanId();
+      const existing = await this.userModel.findOne({ humanId: candidate }).exec();
+      if (!existing) {
+        return candidate;
+      }
+    }
+    // High-entropy fallback if dense
+    return `PB-${Date.now().toString().slice(-6)}`;
+  }
+
   async findByEmail(email: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
   }
 
   async findById(id: string): Promise<UserDocument | null> {
     return this.userModel.findById(id).exec();
+  }
+
+  async findByIdentifier(identifier: string): Promise<UserDocument | null> {
+    const trimmed = identifier.trim();
+    const user = await this.userModel
+      .findOne({
+        $or: [
+          { email: trimmed.toLowerCase() },
+          { humanId: trimmed.toUpperCase() },
+        ],
+      })
+      .exec();
+
+    if (user && !user.humanId) {
+      // Auto-assign humanId if missing on legacy documents
+      user.humanId = await this.generateUniqueHumanId();
+      await user.save();
+    }
+
+    return user;
+  }
+
+  async findByResetTokenHash(tokenHash: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ resetPasswordTokenHash: tokenHash }).exec();
   }
 
   async create(data: Partial<User>): Promise<UserDocument> {
@@ -131,6 +168,7 @@ export class UsersService {
       throw new ConflictException('Email is already registered');
     }
 
+    const humanId = await this.generateUniqueHumanId();
     const temporaryPassword = generateHumanReadablePassword();
     const passwordHash = await argon2.hash(temporaryPassword);
 
@@ -147,6 +185,7 @@ export class UsersService {
 
     try {
       const userDoc = new this.userModel({
+        humanId,
         email: dto.email.toLowerCase().trim(),
         passwordHash,
         firstName: dto.firstName,
@@ -167,6 +206,7 @@ export class UsersService {
         savedUser.email,
         savedUser.firstName,
         temporaryPassword,
+        savedUser.humanId,
       );
 
       // Email was successfully delivered; commit transaction
@@ -207,6 +247,7 @@ export class UsersService {
     if (query.search && query.search.trim()) {
       const searchRegex = new RegExp(query.search.trim(), 'i');
       filter.$or = [
+        { humanId: searchRegex },
         { email: searchRegex },
         { firstName: searchRegex },
         { lastName: searchRegex },
@@ -221,7 +262,7 @@ export class UsersService {
       this.userModel.countDocuments(filter).exec(),
       this.userModel
         .find(filter)
-        .select('-passwordHash -hashedRefreshToken')
+        .select('-passwordHash -hashedRefreshToken -resetPasswordTokenHash')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -246,7 +287,7 @@ export class UsersService {
 
     const user = await this.userModel
       .findById(id)
-      .select('-passwordHash -hashedRefreshToken')
+      .select('-passwordHash -hashedRefreshToken -resetPasswordTokenHash')
       .exec();
 
     if (!user) {

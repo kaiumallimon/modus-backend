@@ -12,6 +12,8 @@ describe('AuthController', () => {
       login: jest.fn(),
       refreshTokens: jest.fn(),
       logout: jest.fn(),
+      forgotPassword: jest.fn(),
+      resetPassword: jest.fn(),
       getProfile: jest.fn(),
     };
 
@@ -44,6 +46,24 @@ describe('AuthController', () => {
     const result = await controller.seedSuperAdmin(dto);
     expect(mockAuthService.seedSuperAdmin).toHaveBeenCalledWith(dto);
     expect(result).toEqual({ message: 'Success' });
+  });
+
+  it('should delegate forgotPassword to service', async () => {
+    const dto = { identifier: 'PB-10492' };
+    mockAuthService.forgotPassword!.mockResolvedValue({ message: 'Email sent' });
+
+    const result = await controller.forgotPassword(dto);
+    expect(mockAuthService.forgotPassword).toHaveBeenCalledWith(dto);
+    expect(result).toEqual({ message: 'Email sent' });
+  });
+
+  it('should delegate resetPassword to service', async () => {
+    const dto = { token: 'token123', newPassword: 'NewPassword123!' };
+    mockAuthService.resetPassword!.mockResolvedValue({ message: 'Password reset' });
+
+    const result = await controller.resetPassword(dto);
+    expect(mockAuthService.resetPassword).toHaveBeenCalledWith(dto);
+    expect(result).toEqual({ message: 'Password reset' });
   });
 
   it('should delegate logout to service', async () => {

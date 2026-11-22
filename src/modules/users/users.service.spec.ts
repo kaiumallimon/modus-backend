@@ -25,7 +25,7 @@ describe('UsersService', () => {
     mockUserModel = jest.fn().mockImplementation((dto) => ({
       ...dto,
       _id: validObjectId,
-      save: jest.fn().mockResolvedValue({ _id: validObjectId, ...dto }),
+      save: jest.fn().mockResolvedValue({ _id: validObjectId, humanId: 'PB-10492', ...dto }),
     }));
 
     mockUserModel.findOne = jest.fn();
@@ -108,15 +108,20 @@ describe('UsersService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should create user, dispatch credentials email, and commit transaction', async () => {
-      mockUserModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+    it('should create user, generate humanId, dispatch credentials email, and commit transaction', async () => {
+      mockUserModel.findOne
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(null), // humanId check
+        })
+        .mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(null), // email check
+        });
 
       mockUserModel.findById.mockReturnValue({
         select: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: validObjectId,
+            humanId: 'PB-10492',
             email: 'new@pharmbrew.com',
             role: Role.EMPLOYEE,
           }),
@@ -137,9 +142,11 @@ describe('UsersService', () => {
         'new@pharmbrew.com',
         'New',
         expect.stringMatching(/^[A-Z][a-z]{3,4}[@#$!%*]\d{3}$/),
+        expect.stringMatching(/^PB-\d{5}$/),
       );
       expect(mockSession.commitTransaction).toHaveBeenCalled();
       expect(result).toHaveProperty('email', 'new@pharmbrew.com');
+      expect(result).toHaveProperty('humanId');
     });
 
     it('should abort transaction and not persist user if mail dispatch fails', async () => {
@@ -165,6 +172,22 @@ describe('UsersService', () => {
 
       expect(mockSession.abortTransaction).toHaveBeenCalled();
       expect(mockSession.commitTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findByIdentifier', () => {
+    it('should find user by email or humanId', async () => {
+      mockUserModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: validObjectId,
+          humanId: 'PB-10492',
+          email: 'user@pharmbrew.com',
+          save: jest.fn().mockResolvedValue(true),
+        }),
+      });
+
+      const user = await service.findByIdentifier('PB-10492');
+      expect(user).toHaveProperty('humanId', 'PB-10492');
     });
   });
 
@@ -206,6 +229,7 @@ describe('UsersService', () => {
         select: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: validObjectId,
+            humanId: 'PB-10492',
             email: 'user@test.com',
           }),
         }),
