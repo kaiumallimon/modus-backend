@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
+import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import {
   BadRequestException,
   ConflictException,
@@ -15,6 +15,8 @@ import { MailService } from '../mail/mail.service';
 describe('UsersService', () => {
   let service: UsersService;
   let mockUserModel: any;
+  let mockConnection: any;
+  let mockSession: any;
   let mockMailService: Partial<Record<keyof MailService, jest.Mock>>;
 
   const validObjectId = new Types.ObjectId().toString();
@@ -22,6 +24,7 @@ describe('UsersService', () => {
   beforeEach(async () => {
     mockUserModel = jest.fn().mockImplementation((dto) => ({
       ...dto,
+      _id: validObjectId,
       save: jest.fn().mockResolvedValue({ _id: validObjectId, ...dto }),
     }));
 
@@ -31,6 +34,17 @@ describe('UsersService', () => {
     mockUserModel.countDocuments = jest.fn();
     mockUserModel.findByIdAndUpdate = jest.fn();
     mockUserModel.findByIdAndDelete = jest.fn();
+
+    mockSession = {
+      startTransaction: jest.fn(),
+      commitTransaction: jest.fn(),
+      abortTransaction: jest.fn(),
+      endSession: jest.fn(),
+    };
+
+    mockConnection = {
+      startSession: jest.fn().mockResolvedValue(mockSession),
+    };
 
     mockMailService = {
       sendWelcomeCredentials: jest.fn().mockResolvedValue(true),
@@ -42,6 +56,10 @@ describe('UsersService', () => {
         {
           provide: getModelToken(User.name),
           useValue: mockUserModel,
+        },
+        {
+          provide: getConnectionToken(),
+          useValue: mockConnection,
         },
         {
           provide: MailService,
@@ -90,7 +108,7 @@ describe('UsersService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should create user, dispatch credentials email, and return clean profile', async () => {
+    it('should create user, dispatch credentials email, and commit transaction', async () => {
       mockUserModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue(null),
       });
@@ -120,7 +138,33 @@ describe('UsersService', () => {
         'New',
         expect.stringMatching(/^[A-Z][a-z]{3,4}[@#$!%*]\d{3}$/),
       );
+      expect(mockSession.commitTransaction).toHaveBeenCalled();
       expect(result).toHaveProperty('email', 'new@pharmbrew.com');
+    });
+
+    it('should abort transaction and not persist user if mail dispatch fails', async () => {
+      mockUserModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      mockMailService.sendWelcomeCredentials!.mockRejectedValue(
+        new Error('SMTP delivery error'),
+      );
+
+      await expect(
+        service.createUser(
+          {
+            email: 'failmail@pharmbrew.com',
+            firstName: 'Fail',
+            lastName: 'Mail',
+            role: Role.EMPLOYEE,
+          },
+          Role.SUPER_ADMIN,
+        ),
+      ).rejects.toThrow('SMTP delivery error');
+
+      expect(mockSession.abortTransaction).toHaveBeenCalled();
+      expect(mockSession.commitTransaction).not.toHaveBeenCalled();
     });
   });
 

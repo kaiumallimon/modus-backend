@@ -6,8 +6,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import * as argon2 from 'argon2';
 import { promises as dns } from 'dns';
 import { User, UserDocument } from './schemas/user.schema';
@@ -36,6 +36,8 @@ export class UsersService {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectConnection()
+    private readonly connection: Connection,
     private readonly mailService: MailService,
   ) {}
 
@@ -132,23 +134,63 @@ export class UsersService {
     const temporaryPassword = generateHumanReadablePassword();
     const passwordHash = await argon2.hash(temporaryPassword);
 
-    const newUser = await this.create({
-      email: dto.email.toLowerCase().trim(),
-      passwordHash,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      role: dto.role,
-      isActive: true,
-      hashedRefreshToken: null,
-    });
+    // Transactional creation: ensure email dispatch and DB persistence are atomic
+    let session: ClientSession | null = null;
+    try {
+      session = await this.connection.startSession();
+      session.startTransaction();
+    } catch {
+      session = null;
+    }
 
-    await this.mailService.sendWelcomeCredentials(
-      newUser.email,
-      newUser.firstName,
-      temporaryPassword,
-    );
+    let createdUserId: string | null = null;
 
-    return this.findOne(newUser._id.toString());
+    try {
+      const userDoc = new this.userModel({
+        email: dto.email.toLowerCase().trim(),
+        passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: dto.role,
+        isActive: true,
+        hashedRefreshToken: null,
+      });
+
+      const savedUser = session
+        ? await userDoc.save({ session })
+        : await userDoc.save();
+
+      createdUserId = savedUser._id.toString();
+
+      // Dispatch welcome credentials email. If this throws, execution jumps to catch block!
+      await this.mailService.sendWelcomeCredentials(
+        savedUser.email,
+        savedUser.firstName,
+        temporaryPassword,
+      );
+
+      // Email was successfully delivered; commit transaction
+      if (session) {
+        await session.commitTransaction();
+      }
+
+      return this.findOne(createdUserId);
+    } catch (error) {
+      if (session) {
+        await session.abortTransaction();
+      } else if (createdUserId) {
+        // Fallback compensation for standalone mongo or environments without replica sets
+        await this.userModel.findByIdAndDelete(createdUserId).exec();
+      }
+      this.logger.error(
+        `User creation aborted/rolled back for ${dto.email}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    } finally {
+      if (session) {
+        await session.endSession();
+      }
+    }
   }
 
   async findAll(query: QueryUserDto): Promise<PaginatedUsersResult> {
