@@ -10,10 +10,12 @@ import { Types } from 'mongoose';
 import { UsersService } from './users.service';
 import { User } from './schemas/user.schema';
 import { Role } from './enums/role.enum';
+import { MailService } from '../mail/mail.service';
 
 describe('UsersService', () => {
   let service: UsersService;
   let mockUserModel: any;
+  let mockMailService: Partial<Record<keyof MailService, jest.Mock>>;
 
   const validObjectId = new Types.ObjectId().toString();
 
@@ -30,12 +32,20 @@ describe('UsersService', () => {
     mockUserModel.findByIdAndUpdate = jest.fn();
     mockUserModel.findByIdAndDelete = jest.fn();
 
+    mockMailService = {
+      sendWelcomeCredentials: jest.fn().mockResolvedValue(true),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         {
           provide: getModelToken(User.name),
           useValue: mockUserModel,
+        },
+        {
+          provide: MailService,
+          useValue: mockMailService,
         },
       ],
     }).compile();
@@ -53,7 +63,6 @@ describe('UsersService', () => {
         service.createUser(
           {
             email: 'admin@pharmbrew.com',
-            password: 'Password123!',
             firstName: 'Super',
             lastName: 'Admin',
             role: Role.SUPER_ADMIN,
@@ -72,7 +81,6 @@ describe('UsersService', () => {
         service.createUser(
           {
             email: 'existing@pharmbrew.com',
-            password: 'Password123!',
             firstName: 'Existing',
             lastName: 'User',
             role: Role.EMPLOYEE,
@@ -82,7 +90,7 @@ describe('UsersService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should create user successfully and return clean profile', async () => {
+    it('should create user, dispatch credentials email, and return clean profile', async () => {
       mockUserModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue(null),
       });
@@ -100,7 +108,6 @@ describe('UsersService', () => {
       const result = await service.createUser(
         {
           email: 'new@pharmbrew.com',
-          password: 'Password123!',
           firstName: 'New',
           lastName: 'User',
           role: Role.EMPLOYEE,
@@ -108,13 +115,34 @@ describe('UsersService', () => {
         Role.SUPER_ADMIN,
       );
 
+      expect(mockMailService.sendWelcomeCredentials).toHaveBeenCalledWith(
+        'new@pharmbrew.com',
+        'New',
+        expect.stringMatching(/^[A-Z][a-z]{3,4}[@#$!%*]\d{3}$/),
+      );
       expect(result).toHaveProperty('email', 'new@pharmbrew.com');
+    });
+  });
+
+  describe('validateEmailDeliverability', () => {
+    it('should accept valid format and skip DNS for test domains', async () => {
+      await expect(
+        service.validateEmailDeliverability('pharmacist@test.com'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should throw BadRequestException if email has invalid format', async () => {
+      await expect(
+        service.validateEmailDeliverability('invalid-email'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('findOne', () => {
     it('should throw BadRequestException if id format is invalid', async () => {
-      await expect(service.findOne('invalid-id')).rejects.toThrow(BadRequestException);
+      await expect(service.findOne('invalid-id')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw NotFoundException if user does not exist', async () => {
@@ -124,13 +152,18 @@ describe('UsersService', () => {
         }),
       });
 
-      await expect(service.findOne(validObjectId)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(validObjectId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should return user when found', async () => {
       mockUserModel.findById.mockReturnValue({
         select: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue({ _id: validObjectId, email: 'user@test.com' }),
+          exec: jest.fn().mockResolvedValue({
+            _id: validObjectId,
+            email: 'user@test.com',
+          }),
         }),
       });
 

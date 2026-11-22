@@ -38,10 +38,12 @@ export class UsersController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Create a new user with initial credentials and role',
+    summary: 'Create a new user with generated credentials and assigned role',
+    description:
+      'Validates email domain deliverability, generates an 8-10 character human-readable strong temporary password, hashes it with Argon2, creates the user, and emails credentials securely via SMTP.',
   })
-  @ApiResponse({ status: 201, description: 'User created successfully' })
-  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 201, description: 'User created successfully and credentials emailed' })
+  @ApiResponse({ status: 400, description: 'Validation failed or email domain does not receive emails' })
   @ApiResponse({
     status: 403,
     description: 'Forbidden (insufficient permissions)',

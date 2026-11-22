@@ -4,27 +4,17 @@ import {
   IsEnum,
   IsNotEmpty,
   IsString,
-  MinLength,
 } from 'class-validator';
 import { Role } from '../enums/role.enum';
 
 export class CreateUserDto {
   @ApiProperty({
     example: 'pharmacist@pharmbrew.com',
-    description: 'Unique email address for the user',
+    description: 'Unique and deliverable email address for the user',
   })
   @IsEmail({}, { message: 'Must be a valid email address' })
   @IsNotEmpty()
   email: string;
-
-  @ApiProperty({
-    example: 'InitialTempPassword123!',
-    description: 'Initial temporary password (minimum 8 characters)',
-  })
-  @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters long' })
-  @IsNotEmpty()
-  password: string;
 
   @ApiProperty({
     example: 'John',

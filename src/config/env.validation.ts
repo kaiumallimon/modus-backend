@@ -19,7 +19,15 @@ export const envValidationSchema = Joi.object({
 
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_REFRESH_SECRET: Joi.string().min(32).required(),
-  JWT_ACCESS_TTL: Joi.string().default('1h'),
+  JWT_ACCESS_TTL: Joi.string().default('15m'),
   JWT_REFRESH_TTL: Joi.string().default('7d'),
   CORS_ORIGIN: Joi.string().required(),
+
+  // Google SMTP Settings (Port 465 SSL)
+  SMTP_HOST: Joi.string().default('smtp.gmail.com'),
+  SMTP_PORT: Joi.number().port().default(465),
+  SMTP_SECURE: Joi.boolean().default(true),
+  SMTP_USER: Joi.string().allow('').optional(),
+  SMTP_PASS: Joi.string().allow('').optional(),
+  SMTP_FROM: Joi.string().default('Pharmbrew <no-reply@pharmbrew.com>'),
 });

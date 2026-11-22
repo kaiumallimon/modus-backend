@@ -47,7 +47,6 @@ describe('UsersController', () => {
     it('should delegate to usersService.createUser with currentUser role', async () => {
       const dto: CreateUserDto = {
         email: 'staff@pharmbrew.com',
-        password: 'Password123!',
         firstName: 'Staff',
         lastName: 'Member',
         role: Role.EMPLOYEE,
@@ -59,7 +58,10 @@ describe('UsersController', () => {
       });
 
       const result = await controller.create(dto, mockCurrentUser);
-      expect(mockUsersService.createUser).toHaveBeenCalledWith(dto, Role.SUPER_ADMIN);
+      expect(mockUsersService.createUser).toHaveBeenCalledWith(
+        dto,
+        Role.SUPER_ADMIN,
+      );
       expect(result).toHaveProperty('id', 'user1');
     });
   });
@@ -67,7 +69,10 @@ describe('UsersController', () => {
   describe('findAll', () => {
     it('should delegate to usersService.findAll with query dto', async () => {
       const query: QueryUserDto = { page: 1, limit: 10, role: Role.ADMIN };
-      mockUsersService.findAll!.mockResolvedValue({ data: [], meta: { total: 0 } });
+      mockUsersService.findAll!.mockResolvedValue({
+        data: [],
+        meta: { total: 0 },
+      });
 
       const result = await controller.findAll(query);
       expect(mockUsersService.findAll).toHaveBeenCalledWith(query);
@@ -88,7 +93,10 @@ describe('UsersController', () => {
   describe('update', () => {
     it('should delegate to usersService.update', async () => {
       const dto: UpdateUserDto = { firstName: 'Updated' };
-      mockUsersService.update!.mockResolvedValue({ id: 'user123', firstName: 'Updated' });
+      mockUsersService.update!.mockResolvedValue({
+        id: 'user123',
+        firstName: 'Updated',
+      });
 
       const result = await controller.update('user123', dto, mockCurrentUser);
       expect(mockUsersService.update).toHaveBeenCalledWith(
@@ -104,9 +112,16 @@ describe('UsersController', () => {
   describe('updateStatus', () => {
     it('should delegate to usersService.updateStatus', async () => {
       const dto: UpdateUserStatusDto = { isActive: false };
-      mockUsersService.updateStatus!.mockResolvedValue({ id: 'user123', isActive: false });
+      mockUsersService.updateStatus!.mockResolvedValue({
+        id: 'user123',
+        isActive: false,
+      });
 
-      const result = await controller.updateStatus('user123', dto, mockCurrentUser);
+      const result = await controller.updateStatus(
+        'user123',
+        dto,
+        mockCurrentUser,
+      );
       expect(mockUsersService.updateStatus).toHaveBeenCalledWith(
         'user123',
         dto,

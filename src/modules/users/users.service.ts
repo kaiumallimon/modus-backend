@@ -3,17 +3,21 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as argon2 from 'argon2';
+import { promises as dns } from 'dns';
 import { User, UserDocument } from './schemas/user.schema';
 import { Role } from './enums/role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { MailService } from '../mail/mail.service';
+import { generateHumanReadablePassword } from './utils/password.util';
 
 export interface PaginatedUsersResult {
   data: UserDocument[];
@@ -27,9 +31,12 @@ export interface PaginatedUsersResult {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    private readonly mailService: MailService,
   ) {}
 
   async findByEmail(email: string): Promise<UserDocument | null> {
@@ -62,6 +69,52 @@ export class UsersService {
     return this.userModel.findByIdAndDelete(userId).exec();
   }
 
+  async validateEmailDeliverability(email: string): Promise<void> {
+    const parts = email.split('@');
+    if (parts.length !== 2 || !parts[1]) {
+      throw new BadRequestException('Invalid email address format');
+    }
+
+    const domain = parts[1].toLowerCase().trim();
+
+    // Skip DNS MX lookup for test runs and placeholder/local domains
+    const isTest = process.env.NODE_ENV === 'test';
+    const testDomains = [
+      'example.com',
+      'test.com',
+      'pharmbrew.com',
+      'localhost',
+    ];
+    if (isTest || testDomains.includes(domain)) {
+      return;
+    }
+
+    try {
+      const records = await dns.resolveMx(domain);
+      if (!records || records.length === 0) {
+        throw new BadRequestException(
+          `Domain "${domain}" has no active mail exchange (MX) records and cannot receive emails`,
+        );
+      }
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      if (
+        error.code === 'ENOTFOUND' ||
+        error.code === 'ENODATA' ||
+        error.code === 'ESERVFAIL'
+      ) {
+        throw new BadRequestException(
+          `Domain "${domain}" does not exist or does not support incoming emails`,
+        );
+      }
+      this.logger.warn(
+        `DNS resolution warning for domain ${domain}: ${error?.message || error}`,
+      );
+    }
+  }
+
   async createUser(dto: CreateUserDto, creatorRole: Role) {
     if (creatorRole !== Role.SUPER_ADMIN && dto.role === Role.SUPER_ADMIN) {
       throw new ForbiddenException(
@@ -69,14 +122,18 @@ export class UsersService {
       );
     }
 
+    await this.validateEmailDeliverability(dto.email);
+
     const existingUser = await this.findByEmail(dto.email);
     if (existingUser) {
       throw new ConflictException('Email is already registered');
     }
 
-    const passwordHash = await argon2.hash(dto.password);
+    const temporaryPassword = generateHumanReadablePassword();
+    const passwordHash = await argon2.hash(temporaryPassword);
+
     const newUser = await this.create({
-      email: dto.email,
+      email: dto.email.toLowerCase().trim(),
       passwordHash,
       firstName: dto.firstName,
       lastName: dto.lastName,
@@ -84,6 +141,12 @@ export class UsersService {
       isActive: true,
       hashedRefreshToken: null,
     });
+
+    await this.mailService.sendWelcomeCredentials(
+      newUser.email,
+      newUser.firstName,
+      temporaryPassword,
+    );
 
     return this.findOne(newUser._id.toString());
   }

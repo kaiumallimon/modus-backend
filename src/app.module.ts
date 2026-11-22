@@ -7,6 +7,7 @@ import { HealthModule } from './modules/health/health.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { MailModule } from './modules/mail/mail.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import configuration from './config/configuration';
@@ -21,6 +22,7 @@ import { envValidationSchema } from './config/env.validation';
     }),
     HealthModule,
     DatabaseModule,
+    MailModule,
     UsersModule,
     AuthModule,
   ],
