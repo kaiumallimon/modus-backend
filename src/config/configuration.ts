@@ -49,4 +49,17 @@ export default () => ({
     pass: process.env.SMTP_PASS || '',
     from: process.env.SMTP_FROM || 'Modus <no-reply@modus.local>',
   },
+
+  r2: {
+    accountId: process.env.R2_ACCOUNT_ID || '',
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+    bucketName: process.env.R2_BUCKET_NAME || '',
+    endpoint:
+      process.env.R2_ENDPOINT ||
+      (process.env.R2_ACCOUNT_ID
+        ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+        : ''),
+    publicBaseUrl: process.env.R2_PUBLIC_BASE_URL?.replace(/\/$/, '') || '',
+  },
 });

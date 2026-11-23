@@ -1,18 +1,25 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Post,
   Req,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import 'multer';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators/public.decorator';
@@ -144,5 +151,59 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getMe(@CurrentUser('userId') userId: string) {
     return this.authService.getProfile(userId);
+  }
+
+  @Post('me/avatar')
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Upload avatar for current authenticated user',
+    description:
+      'Uploads an image file to Cloudflare CDN and assigns it to the current user profile. Only the logged-in user can modify their own avatar.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Avatar uploaded successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid image file or size exceeds 5MB',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  uploadAvatar(
+    @CurrentUser('userId') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req?: Request,
+  ) {
+    const ipAddress = req?.ip || req?.socket?.remoteAddress;
+    const userAgent = req?.headers ? req.headers['user-agent'] : undefined;
+    return this.authService.uploadAvatar(userId, file, ipAddress, userAgent);
+  }
+
+  @Delete('me/avatar')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Remove avatar for current authenticated user',
+    description:
+      'Deletes the current user avatar from Cloudflare CDN and resets the profile avatar URL.',
+  })
+  @ApiResponse({ status: 200, description: 'Avatar removed successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  removeAvatar(
+    @CurrentUser('userId') userId: string,
+    @Req() req?: Request,
+  ) {
+    const ipAddress = req?.ip || req?.socket?.remoteAddress;
+    const userAgent = req?.headers ? req.headers['user-agent'] : undefined;
+    return this.authService.removeAvatar(userId, ipAddress, userAgent);
   }
 }

@@ -57,6 +57,13 @@ export class User {
   role: string;
 
   @Prop({
+    type: String,
+    default: null,
+    trim: true,
+  })
+  avatarUrl?: string | null;
+
+  @Prop({
     type: Boolean,
     default: true,
   })

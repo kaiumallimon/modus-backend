@@ -35,4 +35,12 @@ export const envValidationSchema = Joi.object({
   SMTP_USER: Joi.string().allow('').optional(),
   SMTP_PASS: Joi.string().allow('').optional(),
   SMTP_FROM: Joi.string().default('Modus <no-reply@modus.local>'),
+
+  // Cloudflare R2 CDN Settings
+  R2_ACCOUNT_ID: Joi.string().allow('').optional(),
+  R2_ACCESS_KEY_ID: Joi.string().allow('').optional(),
+  R2_SECRET_ACCESS_KEY: Joi.string().allow('').optional(),
+  R2_BUCKET_NAME: Joi.string().allow('').optional(),
+  R2_ENDPOINT: Joi.string().allow('').optional(),
+  R2_PUBLIC_BASE_URL: Joi.string().allow('').optional(),
 });

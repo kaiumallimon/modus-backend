@@ -12,6 +12,7 @@ import { UsersService } from '../users/users.service';
 import { Role } from '../users/enums/role.enum';
 import { MailService } from '../mail/mail.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { StorageService } from '../storage/storage.service';
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -66,6 +67,16 @@ describe('AuthService', () => {
           provide: AuditLogService,
           useValue: {
             record: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: StorageService,
+          useValue: {
+            uploadAvatar: jest.fn().mockResolvedValue({
+              url: 'https://cdn.archetechnologies.tech/avatars/user-123.jpg',
+              key: 'avatars/user-123.jpg',
+            }),
+            deleteAvatar: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

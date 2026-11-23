@@ -15,6 +15,7 @@ import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -81,6 +82,7 @@ import { envValidationSchema } from './config/env.validation';
     OrganizationModule,
     SystemSettingsModule,
     ModuleRegistryModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [

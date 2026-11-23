@@ -15,6 +15,8 @@ describe('AuthController', () => {
       forgotPassword: jest.fn(),
       resetPassword: jest.fn(),
       getProfile: jest.fn(),
+      uploadAvatar: jest.fn(),
+      removeAvatar: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -72,5 +74,26 @@ describe('AuthController', () => {
     const result = await controller.logout('user123');
     expect(mockAuthService.logout).toHaveBeenCalledWith('user123', undefined, undefined);
     expect(result).toEqual({ message: 'Logged out' });
+  });
+
+  it('should delegate uploadAvatar to service for current authenticated user', async () => {
+    const mockFile = { buffer: Buffer.from('test') } as any;
+    mockAuthService.uploadAvatar!.mockResolvedValue({
+      avatarUrl: 'https://cdn.archetechnologies.tech/avatars/user-123.jpg',
+    });
+
+    const result = await controller.uploadAvatar('user123', mockFile);
+    expect(mockAuthService.uploadAvatar).toHaveBeenCalledWith('user123', mockFile, undefined, undefined);
+    expect(result).toEqual({
+      avatarUrl: 'https://cdn.archetechnologies.tech/avatars/user-123.jpg',
+    });
+  });
+
+  it('should delegate removeAvatar to service for current authenticated user', async () => {
+    mockAuthService.removeAvatar!.mockResolvedValue({ avatarUrl: null });
+
+    const result = await controller.removeAvatar('user123');
+    expect(mockAuthService.removeAvatar).toHaveBeenCalledWith('user123', undefined, undefined);
+    expect(result).toEqual({ avatarUrl: null });
   });
 });

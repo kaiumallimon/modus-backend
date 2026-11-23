@@ -19,6 +19,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { MailService } from '../mail/mail.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { StorageService } from '../storage/storage.service';
+import 'multer';
 
 export interface AuthTokens {
   accessToken: string;
@@ -33,6 +35,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
     private readonly auditLogService: AuditLogService,
+    private readonly storageService: StorageService,
   ) {}
 
   async hashData(data: string): Promise<string> {
@@ -237,6 +240,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        avatarUrl: user.avatarUrl || null,
       },
       tokens,
     };
@@ -461,8 +465,104 @@ export class AuthService {
       lastName: user.lastName,
       role: user.role,
       isActive: user.isActive,
+      avatarUrl: user.avatarUrl || null,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+    };
+  }
+
+  async uploadAvatar(
+    userId: string,
+    file: Express.Multer.File,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.avatarUrl) {
+      await this.storageService.deleteAvatar(user.avatarUrl);
+    }
+
+    const { url } = await this.storageService.uploadAvatar(userId, file);
+    user.avatarUrl = url;
+    await user.save();
+
+    await this.auditLogService.record({
+      actor: {
+        id: user._id.toString(),
+        email: user.email,
+        humanId: user.humanId,
+        role: user.role,
+      },
+      action: 'USER_AVATAR_UPDATE',
+      resource: 'users',
+      resourceId: user._id.toString(),
+      description: `User ${user.email} updated profile avatar`,
+      ipAddress,
+      userAgent,
+    });
+
+    return {
+      avatarUrl: url,
+      user: {
+        id: user._id.toString(),
+        humanId: user.humanId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        isActive: user.isActive,
+        avatarUrl: user.avatarUrl,
+      },
+    };
+  }
+
+  async removeAvatar(
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.avatarUrl) {
+      await this.storageService.deleteAvatar(user.avatarUrl);
+      user.avatarUrl = null;
+      await user.save();
+
+      await this.auditLogService.record({
+        actor: {
+          id: user._id.toString(),
+          email: user.email,
+          humanId: user.humanId,
+          role: user.role,
+        },
+        action: 'USER_AVATAR_DELETE',
+        resource: 'users',
+        resourceId: user._id.toString(),
+        description: `User ${user.email} removed profile avatar`,
+        ipAddress,
+        userAgent,
+      });
+    }
+
+    return {
+      avatarUrl: null,
+      user: {
+        id: user._id.toString(),
+        humanId: user.humanId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        isActive: user.isActive,
+        avatarUrl: null,
+      },
     };
   }
 }
