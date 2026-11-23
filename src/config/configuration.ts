@@ -1,6 +1,6 @@
 export default () => ({
   app: {
-    name: process.env.APP_NAME || 'Pharmbrew',
+    name: process.env.APP_NAME || 'Modus',
     environment: process.env.NODE_ENV || 'development',
     port: parseInt(process.env.PORT || '8000', 10),
     apiPrefix: process.env.API_PREFIX || 'api/v1',
@@ -8,7 +8,7 @@ export default () => ({
 
   database: {
     uri: process.env.MONGODB_URI,
-    name: process.env.DB_NAME,
+    name: process.env.MONGODB_DATABASE || process.env.DB_NAME || 'modus',
   },
 
   jwt: {
@@ -34,6 +34,6 @@ export default () => ({
       (process.env.SMTP_PORT ? process.env.SMTP_PORT === '465' : true),
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
-    from: process.env.SMTP_FROM || 'Pharmbrew <no-reply@pharmbrew.com>',
+    from: process.env.SMTP_FROM || 'Modus <no-reply@modus.local>',
   },
 });

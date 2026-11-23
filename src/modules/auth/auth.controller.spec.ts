@@ -36,7 +36,7 @@ describe('AuthController', () => {
 
   it('should delegate seedSuperAdmin to service', async () => {
     const dto = {
-      email: 'admin@pharmbrew.com',
+      email: 'admin@modus.local',
       password: 'Password123!',
       firstName: 'Super',
       lastName: 'Admin',
@@ -49,7 +49,7 @@ describe('AuthController', () => {
   });
 
   it('should delegate forgotPassword to service', async () => {
-    const dto = { identifier: 'PB-10492' };
+    const dto = { identifier: 'MOD-10492' };
     mockAuthService.forgotPassword!.mockResolvedValue({ message: 'Email sent' });
 
     const result = await controller.forgotPassword(dto);

@@ -22,7 +22,7 @@ describe('HealthController', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string, defaultValue?: string) => {
-              if (key === 'app.name') return 'Pharmbrew';
+              if (key === 'app.name') return 'Modus';
               return defaultValue;
             }),
           },
@@ -42,7 +42,7 @@ describe('HealthController', () => {
     const result = controller.check();
 
     expect(result.status).toBe('ok');
-    expect(result.service).toBe('Pharmbrew');
+    expect(result.service).toBe('Modus');
     expect(result.dependencies.database.status).toBe('connected');
   });
 

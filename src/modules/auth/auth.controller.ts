@@ -44,7 +44,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'User login with email or Human ID returning JWT pair',
     description:
-      'Allows authentication using either the registered email address or human-readable User ID (e.g. PB-10492).',
+      'Allows authentication using either the registered email address or human-readable User ID (e.g. MOD-10492).',
   })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid email/ID or password' })

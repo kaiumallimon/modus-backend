@@ -3,8 +3,8 @@ import { IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class LoginDto {
   @ApiProperty({
-    example: 'PB-10492',
-    description: 'User registered email address or human-readable ID (e.g. PB-10492)',
+    example: 'MOD-10492',
+    description: 'User registered email address or human-readable ID (e.g. MOD-10492)',
   })
   @IsString()
   @IsNotEmpty({ message: 'Email or User ID is required' })
@@ -20,7 +20,7 @@ export class LoginDto {
   password: string;
 
   @ApiPropertyOptional({
-    example: 'admin@pharmbrew.com',
+    example: 'admin@modus.local',
     description: 'Optional alias for identifier (backward compatibility)',
   })
   @IsOptional()

@@ -28,7 +28,7 @@ describe('AuthService', () => {
       findByResetTokenHash: jest.fn(),
       create: jest.fn(),
       updateHashedRefreshToken: jest.fn(),
-      generateUniqueHumanId: jest.fn().mockResolvedValue('PB-10001'),
+      generateUniqueHumanId: jest.fn().mockResolvedValue('MOD-10001'),
     };
 
     mockJwtService = {
@@ -77,7 +77,7 @@ describe('AuthService', () => {
 
       await expect(
         authService.seedSuperAdmin({
-          email: 'admin@pharmbrew.com',
+          email: 'admin@modus.local',
           password: 'Password123!',
           firstName: 'Admin',
           lastName: 'User',
@@ -91,7 +91,7 @@ describe('AuthService', () => {
 
       await expect(
         authService.seedSuperAdmin({
-          email: 'admin@pharmbrew.com',
+          email: 'admin@modus.local',
           password: 'Password123!',
           firstName: 'Admin',
           lastName: 'User',
@@ -104,8 +104,8 @@ describe('AuthService', () => {
       mockUsersService.findByEmail!.mockResolvedValue(null);
       mockUsersService.create!.mockResolvedValue({
         _id: 'user123',
-        humanId: 'PB-10001',
-        email: 'superadmin@pharmbrew.com',
+        humanId: 'MOD-10001',
+        email: 'admin@modus.local',
         firstName: 'Super',
         lastName: 'Admin',
         role: Role.SUPER_ADMIN,
@@ -114,14 +114,14 @@ describe('AuthService', () => {
       mockUsersService.updateHashedRefreshToken!.mockResolvedValue({});
 
       const result = await authService.seedSuperAdmin({
-        email: 'superadmin@pharmbrew.com',
+        email: 'admin@modus.local',
         password: 'Password123!',
         firstName: 'Super',
         lastName: 'Admin',
       });
 
-      expect(result.user.email).toBe('superadmin@pharmbrew.com');
-      expect(result.user.humanId).toBe('PB-10001');
+      expect(result.user.email).toBe('admin@modus.local');
+      expect(result.user.humanId).toBe('MOD-10001');
       expect(result.user.role).toBe(Role.SUPER_ADMIN);
       expect(result.tokens.accessToken).toBe('token123');
     });
@@ -139,8 +139,8 @@ describe('AuthService', () => {
     it('should allow login with humanId', async () => {
       const mockUser = {
         _id: 'user123',
-        humanId: 'PB-10492',
-        email: 'user@pharmbrew.com',
+        humanId: 'MOD-10492',
+        email: 'user@modus.local',
         firstName: 'John',
         lastName: 'Doe',
         role: Role.EMPLOYEE,
@@ -156,12 +156,12 @@ describe('AuthService', () => {
       mockUsersService.updateHashedRefreshToken!.mockResolvedValue(mockUser);
 
       const result = await authService.login({
-        identifier: 'PB-10492',
+        identifier: 'MOD-10492',
         password: 'ValidPassword123!',
       });
 
-      expect(mockUsersService.findByIdentifier).toHaveBeenCalledWith('PB-10492');
-      expect(result.user.humanId).toBe('PB-10492');
+      expect(mockUsersService.findByIdentifier).toHaveBeenCalledWith('MOD-10492');
+      expect(result.user.humanId).toBe('MOD-10492');
       expect(result.tokens.accessToken).toBe('access123');
     });
   });
@@ -171,7 +171,7 @@ describe('AuthService', () => {
       mockUsersService.findByIdentifier!.mockResolvedValue(null);
 
       const result = await authService.forgotPassword({
-        identifier: 'nonexistent@pharmbrew.com',
+        identifier: 'nonexistent@modus.local',
       });
 
       expect(result.message).toContain('If an active account with that email or User ID exists');
@@ -180,7 +180,7 @@ describe('AuthService', () => {
 
     it('should generate token, save token hash, and send email if user exists', async () => {
       const mockUser = {
-        email: 'john@pharmbrew.com',
+        email: 'john@modus.local',
         firstName: 'John',
         isActive: true,
         save: jest.fn().mockResolvedValue(true),
@@ -188,12 +188,12 @@ describe('AuthService', () => {
       mockUsersService.findByIdentifier!.mockResolvedValue(mockUser);
 
       const result = await authService.forgotPassword({
-        identifier: 'PB-10492',
+        identifier: 'MOD-10492',
       });
 
       expect(mockUser.save).toHaveBeenCalled();
       expect(mockMailService.sendPasswordResetEmail).toHaveBeenCalledWith(
-        'john@pharmbrew.com',
+        'john@modus.local',
         'John',
         expect.any(String),
       );

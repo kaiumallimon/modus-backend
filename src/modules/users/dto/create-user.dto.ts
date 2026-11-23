@@ -9,7 +9,7 @@ import { Role } from '../enums/role.enum';
 
 export class CreateUserDto {
   @ApiProperty({
-    example: 'pharmacist@pharmbrew.com',
+    example: 'user@modus.local',
     description: 'Unique and deliverable email address for the user',
   })
   @IsEmail({}, { message: 'Must be a valid email address' })

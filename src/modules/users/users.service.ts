@@ -51,7 +51,7 @@ export class UsersService {
       }
     }
     // High-entropy fallback if dense
-    return `PB-${Date.now().toString().slice(-6)}`;
+    return `MOD-${Date.now().toString().slice(-6)}`;
   }
 
   async findByEmail(email: string): Promise<UserDocument | null> {
@@ -121,7 +121,7 @@ export class UsersService {
     const testDomains = [
       'example.com',
       'test.com',
-      'pharmbrew.com',
+      'modus.local',
       'localhost',
     ];
     if (isTest || testDomains.includes(domain)) {

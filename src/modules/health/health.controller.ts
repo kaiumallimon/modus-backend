@@ -36,7 +36,7 @@ export class HealthController {
       statusCode: isDatabaseConnected
         ? HttpStatus.OK
         : HttpStatus.SERVICE_UNAVAILABLE,
-      service: this.configService.get<string>('app.name', 'Pharmbrew'),
+      service: this.configService.get<string>('app.name', 'Modus'),
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       dependencies: {

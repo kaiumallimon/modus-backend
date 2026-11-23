@@ -13,7 +13,7 @@ describe('UsersController', () => {
 
   const mockCurrentUser = {
     userId: '6b035bd0e2384111c7593a13',
-    email: 'admin@pharmbrew.com',
+    email: 'admin@modus.local',
     role: Role.SUPER_ADMIN,
   };
 
@@ -46,7 +46,7 @@ describe('UsersController', () => {
   describe('create', () => {
     it('should delegate to usersService.createUser with currentUser role', async () => {
       const dto: CreateUserDto = {
-        email: 'staff@pharmbrew.com',
+        email: 'staff@modus.local',
         firstName: 'Staff',
         lastName: 'Member',
         role: Role.EMPLOYEE,

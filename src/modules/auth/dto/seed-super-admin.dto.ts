@@ -3,7 +3,7 @@ import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class SeedSuperAdminDto {
   @ApiProperty({
-    example: 'superadmin@pharmbrew.com',
+    example: 'admin@modus.local',
     description: 'Super Admin email address',
   })
   @IsEmail({}, { message: 'Must be a valid email address' })

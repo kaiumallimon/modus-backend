@@ -5,7 +5,7 @@ export const envValidationSchema = Joi.object({
     .valid('development', 'production', 'test')
     .default('development'),
 
-  APP_NAME: Joi.string().default('Pharmbrew'),
+  APP_NAME: Joi.string().default('Modus'),
 
   PORT: Joi.number().port().default(8000),
 
@@ -15,7 +15,8 @@ export const envValidationSchema = Joi.object({
     .uri({ scheme: ['mongodb', 'mongodb+srv'] })
     .required(),
 
-  DB_NAME: Joi.string().trim().min(1).required(),
+  MONGODB_DATABASE: Joi.string().trim().min(1).default('modus'),
+  DB_NAME: Joi.string().trim().min(1).optional(),
 
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_REFRESH_SECRET: Joi.string().min(32).required(),
@@ -29,5 +30,5 @@ export const envValidationSchema = Joi.object({
   SMTP_SECURE: Joi.boolean().default(true),
   SMTP_USER: Joi.string().allow('').optional(),
   SMTP_PASS: Joi.string().allow('').optional(),
-  SMTP_FROM: Joi.string().default('Pharmbrew <no-reply@pharmbrew.com>'),
+  SMTP_FROM: Joi.string().default('Modus <no-reply@modus.local>'),
 });

@@ -1,7 +1,7 @@
 {
-  "name": "pharmbrew-backend",
+  "name": "modus-backend",
   "version": "0.0.1",
-  "description": "",
+  "description": "Modus — Self-hosted Business Management System",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

@@ -37,8 +37,10 @@ async function bootstrap() {
   app.setGlobalPrefix(apiPrefix);
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle(config.get<string>('app.name', 'Pharmbrew'))
-    .setDescription('Pharmbrew Backend API documentation')
+    .setTitle(config.get<string>('app.name', 'Modus'))
+    .setDescription(
+      'Modus — Self-hosted Business Management System API Documentation',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();

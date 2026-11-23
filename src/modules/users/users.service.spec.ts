@@ -25,7 +25,7 @@ describe('UsersService', () => {
     mockUserModel = jest.fn().mockImplementation((dto) => ({
       ...dto,
       _id: validObjectId,
-      save: jest.fn().mockResolvedValue({ _id: validObjectId, humanId: 'PB-10492', ...dto }),
+      save: jest.fn().mockResolvedValue({ _id: validObjectId, humanId: 'MOD-10492', ...dto }),
     }));
 
     mockUserModel.findOne = jest.fn();
@@ -80,7 +80,7 @@ describe('UsersService', () => {
       await expect(
         service.createUser(
           {
-            email: 'admin@pharmbrew.com',
+            email: 'admin@modus.local',
             firstName: 'Super',
             lastName: 'Admin',
             role: Role.SUPER_ADMIN,
@@ -98,7 +98,7 @@ describe('UsersService', () => {
       await expect(
         service.createUser(
           {
-            email: 'existing@pharmbrew.com',
+            email: 'existing@modus.local',
             firstName: 'Existing',
             lastName: 'User',
             role: Role.EMPLOYEE,
@@ -121,8 +121,8 @@ describe('UsersService', () => {
         select: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: validObjectId,
-            humanId: 'PB-10492',
-            email: 'new@pharmbrew.com',
+            humanId: 'MOD-10492',
+            email: 'new@modus.local',
             role: Role.EMPLOYEE,
           }),
         }),
@@ -130,7 +130,7 @@ describe('UsersService', () => {
 
       const result = await service.createUser(
         {
-          email: 'new@pharmbrew.com',
+          email: 'new@modus.local',
           firstName: 'New',
           lastName: 'User',
           role: Role.EMPLOYEE,
@@ -139,13 +139,13 @@ describe('UsersService', () => {
       );
 
       expect(mockMailService.sendWelcomeCredentials).toHaveBeenCalledWith(
-        'new@pharmbrew.com',
+        'new@modus.local',
         'New',
         expect.stringMatching(/^[A-Z][a-z]{3,4}[@#$!%*]\d{3}$/),
-        expect.stringMatching(/^PB-\d{5}$/),
+        expect.stringMatching(/^MOD-\d{5}$/),
       );
       expect(mockSession.commitTransaction).toHaveBeenCalled();
-      expect(result).toHaveProperty('email', 'new@pharmbrew.com');
+      expect(result).toHaveProperty('email', 'new@modus.local');
       expect(result).toHaveProperty('humanId');
     });
 
@@ -161,7 +161,7 @@ describe('UsersService', () => {
       await expect(
         service.createUser(
           {
-            email: 'failmail@pharmbrew.com',
+            email: 'failmail@modus.local',
             firstName: 'Fail',
             lastName: 'Mail',
             role: Role.EMPLOYEE,
@@ -180,21 +180,21 @@ describe('UsersService', () => {
       mockUserModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: validObjectId,
-          humanId: 'PB-10492',
-          email: 'user@pharmbrew.com',
+          humanId: 'MOD-10492',
+          email: 'user@modus.local',
           save: jest.fn().mockResolvedValue(true),
         }),
       });
 
-      const user = await service.findByIdentifier('PB-10492');
-      expect(user).toHaveProperty('humanId', 'PB-10492');
+      const user = await service.findByIdentifier('MOD-10492');
+      expect(user).toHaveProperty('humanId', 'MOD-10492');
     });
   });
 
   describe('validateEmailDeliverability', () => {
     it('should accept valid format and skip DNS for test domains', async () => {
       await expect(
-        service.validateEmailDeliverability('pharmacist@test.com'),
+        service.validateEmailDeliverability('user@test.com'),
       ).resolves.toBeUndefined();
     });
 
@@ -229,7 +229,7 @@ describe('UsersService', () => {
         select: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: validObjectId,
-            humanId: 'PB-10492',
+            humanId: 'MOD-10492',
             email: 'user@test.com',
           }),
         }),

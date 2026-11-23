@@ -57,7 +57,7 @@ export class MailService implements OnModuleInit {
   private getFromAddress(): string {
     const smtpUser = this.configService.get<string>('smtp.user');
     const configuredFrom = this.configService.get<string>('smtp.from');
-    const fromName = 'Pharmbrew';
+    const fromName = 'Modus';
 
     return smtpUser && smtpUser.includes('@gmail.com')
       ? `"${fromName}" <${smtpUser}>`
@@ -71,12 +71,12 @@ export class MailService implements OnModuleInit {
     humanId?: string,
   ): Promise<boolean> {
     const from = this.getFromAddress();
-    const replyTo = 'no-reply@pharmbrew.com';
-    const subject = 'Your Pharmbrew Account Credentials';
+    const replyTo = 'no-reply@modus.local';
+    const subject = 'Your Modus Account Credentials';
 
     const textContent = `Hello ${firstName},
 
-Welcome to Pharmbrew. An account has been created for you.
+Welcome to Modus. An account has been created for you.
 
 Your sign-in credentials:
 ${humanId ? `User ID: ${humanId}\n` : ''}Email: ${to}
@@ -85,7 +85,7 @@ Temporary Password: ${temporaryPassword}
 Important: For security compliance, please log in and change your password immediately upon your first sign-in.
 
 Best regards,
-The Pharmbrew Team`;
+The Modus Team`;
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -99,7 +99,7 @@ The Pharmbrew Team`;
     <p style="margin-bottom: 16px;">Hello ${firstName},</p>
 
     <p style="margin-bottom: 16px;">
-      An account has been created for you on the Pharmbrew platform. You can sign in using either your User ID or email address with the temporary credentials below:
+      An account has been created for you on the Modus platform. You can sign in using either your User ID or email address with the temporary credentials below:
     </p>
 
     <div style="margin: 24px 0; padding: 12px 16px; background-color: #f9fafb; border-left: 3px solid #0284c7; font-size: 15px; line-height: 1.8;">
@@ -113,7 +113,7 @@ The Pharmbrew Team`;
     </p>
 
     <p style="margin-top: 24px; margin-bottom: 4px;">Best regards,</p>
-    <p style="margin-top: 0; font-weight: 600; color: #0284c7;">The Pharmbrew Team</p>
+    <p style="margin-top: 0; font-weight: 600; color: #0284c7;">The Modus Team</p>
   </div>
 </body>
 </html>`;
@@ -141,7 +141,7 @@ The Pharmbrew Team`;
         html: htmlContent,
         headers: {
           'X-Entity-Ref-ID': `${Date.now()}-${to}`,
-          'X-Mailer': 'Pharmbrew Auth Mailer',
+          'X-Mailer': 'Modus Auth Mailer',
         },
       });
 
@@ -166,12 +166,12 @@ The Pharmbrew Team`;
     token: string,
   ): Promise<boolean> {
     const from = this.getFromAddress();
-    const replyTo = 'no-reply@pharmbrew.com';
-    const subject = 'Password Reset Request - Pharmbrew';
+    const replyTo = 'no-reply@modus.local';
+    const subject = 'Password Reset Request - Modus';
 
     const textContent = `Hello ${firstName},
 
-We received a request to reset your password for your Pharmbrew account.
+We received a request to reset your password for your Modus account.
 
 Your password reset token is:
 ${token}
@@ -181,7 +181,7 @@ This token is valid for 15 minutes and can only be used once.
 If you did not request this password reset, please ignore this email or contact your administrator.
 
 Best regards,
-The Pharmbrew Team`;
+The Modus Team`;
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -195,7 +195,7 @@ The Pharmbrew Team`;
     <p style="margin-bottom: 16px;">Hello ${firstName},</p>
 
     <p style="margin-bottom: 16px;">
-      We received a request to reset the password for your Pharmbrew account. Use the one-time token below to complete your password reset:
+      We received a request to reset the password for your Modus account. Use the one-time token below to complete your password reset:
     </p>
 
     <div style="margin: 24px 0; padding: 12px 16px; background-color: #f9fafb; border-left: 3px solid #0284c7; font-size: 15px; line-height: 1.8;">
@@ -208,7 +208,7 @@ The Pharmbrew Team`;
     </p>
 
     <p style="margin-top: 24px; margin-bottom: 4px;">Best regards,</p>
-    <p style="margin-top: 0; font-weight: 600; color: #0284c7;">The Pharmbrew Team</p>
+    <p style="margin-top: 0; font-weight: 600; color: #0284c7;">The Modus Team</p>
   </div>
 </body>
 </html>`;
@@ -236,7 +236,7 @@ The Pharmbrew Team`;
         html: htmlContent,
         headers: {
           'X-Entity-Ref-ID': `${Date.now()}-${to}`,
-          'X-Mailer': 'Pharmbrew Auth Mailer',
+          'X-Mailer': 'Modus Auth Mailer',
         },
       });
 
