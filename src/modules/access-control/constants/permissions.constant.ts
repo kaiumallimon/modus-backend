@@ -37,6 +37,10 @@ export const MODULE_NAMES: Record<string, { name: string; description: string }>
     name: 'Audit Logging',
     description: 'Inspect immutable historical security and administrative events',
   },
+  cdn: {
+    name: 'Cloudflare CDN & Storage',
+    description: 'Inspect assets, manage files, and monitor CDN usage metrics',
+  },
 };
 
 export const CORE_PERMISSIONS: PermissionDefinition[] = [
@@ -152,5 +156,19 @@ export const CORE_PERMISSIONS: PermissionDefinition[] = [
     name: 'View Audit Logs',
     description: 'Read system audit and security event logs',
     module: 'audit-log',
+  },
+
+  // Cloudflare CDN & Storage
+  {
+    id: 'cdn.read',
+    name: 'View CDN Explorer',
+    description: 'Inspect CDN assets, folders, file previews, and usage analytics',
+    module: 'cdn',
+  },
+  {
+    id: 'cdn.manage',
+    name: 'Manage CDN Assets',
+    description: 'Upload, delete, and manage files in the Cloudflare CDN bucket',
+    module: 'cdn',
   },
 ];

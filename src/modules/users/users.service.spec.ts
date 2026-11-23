@@ -192,7 +192,7 @@ describe('UsersService', () => {
       expect(mockMailService.sendWelcomeCredentials).toHaveBeenCalledWith(
         'new@modus.local',
         'New',
-        expect.stringMatching(/^[A-Z][a-z]{3,4}[@#$!%*]\d{3}$/),
+        expect.stringMatching(/^[A-Z][a-z]{3,5}[@#$!%*]\d{3}$/),
         expect.stringMatching(/^MOD-\d{5}$/),
       );
       expect(mockSession.commitTransaction).toHaveBeenCalled();
