@@ -48,10 +48,13 @@ export class User {
 
   @Prop({
     type: String,
-    enum: Role,
+    required: true,
+    trim: true,
+    uppercase: true,
     default: Role.EMPLOYEE,
+    index: true,
   })
-  role: Role;
+  role: string;
 
   @Prop({
     type: Boolean,

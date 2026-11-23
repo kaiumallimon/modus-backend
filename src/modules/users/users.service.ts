@@ -18,6 +18,7 @@ import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { MailService } from '../mail/mail.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AccessControlService } from '../access-control/access-control.service';
 import { generateHumanReadablePassword } from './utils/password.util';
 import { generateHumanId } from './utils/human-id.util';
 
@@ -31,6 +32,15 @@ export interface PaginatedUsersResult {
   };
 }
 
+export interface UserEffectivePermissions {
+  userId: string;
+  humanId?: string;
+  email: string;
+  role: string;
+  isSuperAdmin: boolean;
+  permissions: string[];
+}
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
@@ -42,6 +52,7 @@ export class UsersService {
     private readonly connection: Connection,
     private readonly mailService: MailService,
     private readonly auditLogService: AuditLogService,
+    private readonly accessControlService: AccessControlService,
   ) {}
 
   async generateUniqueHumanId(): Promise<string> {
@@ -173,10 +184,23 @@ export class UsersService {
     }
   }
 
-  async createUser(dto: CreateUserDto, creatorRole: Role) {
-    if (creatorRole !== Role.SUPER_ADMIN && dto.role === Role.SUPER_ADMIN) {
+  async createUser(dto: CreateUserDto, creatorRole: Role | string) {
+    const roleCode = dto.role.toUpperCase().trim();
+
+    if (creatorRole !== Role.SUPER_ADMIN && roleCode === Role.SUPER_ADMIN) {
       throw new ForbiddenException(
         'Only SUPER_ADMIN can assign the SUPER_ADMIN role',
+      );
+    }
+
+    // Verify role exists and is active in Access Control registry
+    const roleDoc = await this.accessControlService.findRoleByCode(roleCode);
+    if (!roleDoc) {
+      throw new BadRequestException(`Role "${dto.role}" does not exist`);
+    }
+    if (!roleDoc.isActive) {
+      throw new BadRequestException(
+        `Role "${roleDoc.name}" (${roleCode}) is inactive and cannot be assigned`,
       );
     }
 
@@ -209,7 +233,7 @@ export class UsersService {
         passwordHash,
         firstName: dto.firstName,
         lastName: dto.lastName,
-        role: dto.role,
+        role: roleCode,
         isActive: true,
         hashedRefreshToken: null,
       });
@@ -237,7 +261,7 @@ export class UsersService {
         actor: {
           id: 'system',
           email: 'user-management@modus.local',
-          role: creatorRole,
+          role: String(creatorRole),
         },
         action: 'USER_CREATE',
         resource: 'users',
@@ -273,7 +297,7 @@ export class UsersService {
     const filter: Record<string, any> = {};
 
     if (query.role) {
-      filter.role = query.role;
+      filter.role = query.role.toUpperCase().trim();
     }
 
     if (query.isActive !== undefined) {
@@ -337,7 +361,7 @@ export class UsersService {
     id: string,
     dto: UpdateUserDto,
     _currentUserId: string,
-    currentUserRole: Role,
+    currentUserRole: Role | string,
   ): Promise<UserDocument> {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid user ID format');
@@ -368,9 +392,20 @@ export class UsersService {
       targetUser.lastName = dto.lastName;
     }
     if (dto.role !== undefined && currentUserRole === Role.SUPER_ADMIN) {
+      const newRoleCode = dto.role.toUpperCase().trim();
+      const roleDoc = await this.accessControlService.findRoleByCode(newRoleCode);
+      if (!roleDoc) {
+        throw new BadRequestException(`Role "${dto.role}" does not exist`);
+      }
+      if (!roleDoc.isActive) {
+        throw new BadRequestException(
+          `Role "${roleDoc.name}" (${newRoleCode}) is inactive and cannot be assigned`,
+        );
+      }
+
       if (
         targetUser.role === Role.SUPER_ADMIN &&
-        dto.role !== Role.SUPER_ADMIN
+        newRoleCode !== Role.SUPER_ADMIN
       ) {
         const activeAdmins = await this.countActiveSuperAdmins();
         if (activeAdmins <= 1 && targetUser.isActive) {
@@ -379,7 +414,7 @@ export class UsersService {
           );
         }
       }
-      targetUser.role = dto.role;
+      targetUser.role = newRoleCode;
     }
 
     await targetUser.save();
@@ -388,7 +423,7 @@ export class UsersService {
       actor: {
         id: _currentUserId,
         email: 'user-management@modus.local',
-        role: currentUserRole,
+        role: String(currentUserRole),
       },
       action: 'USER_UPDATE',
       resource: 'users',
@@ -400,11 +435,116 @@ export class UsersService {
     return this.findOne(id);
   }
 
+  async assignRole(
+    userId: string,
+    newRoleCode: string,
+    currentUserId: string,
+    currentUserRole: Role | string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<UserDocument> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID format');
+    }
+
+    const targetUser = await this.userModel.findById(userId).exec();
+    if (!targetUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    const code = newRoleCode.toUpperCase().trim();
+    const roleDoc = await this.accessControlService.findRoleByCode(code);
+    if (!roleDoc) {
+      throw new BadRequestException(`Role "${newRoleCode}" does not exist`);
+    }
+
+    if (!roleDoc.isActive) {
+      throw new BadRequestException(
+        `Role "${roleDoc.name}" (${code}) is currently inactive and cannot be assigned`,
+      );
+    }
+
+    if (targetUser.role === code) {
+      return this.findOne(userId);
+    }
+
+    // Demotion check: protect the last active SUPER_ADMIN
+    if (targetUser.role === Role.SUPER_ADMIN && code !== Role.SUPER_ADMIN) {
+      const activeAdmins = await this.countActiveSuperAdmins();
+      if (activeAdmins <= 1 && targetUser.isActive) {
+        throw new ForbiddenException(
+          'Cannot demote the last active Super Administrator',
+        );
+      }
+    }
+
+    const oldRole = targetUser.role;
+    targetUser.role = code;
+    await targetUser.save();
+
+    await this.auditLogService.record({
+      actor: {
+        id: currentUserId,
+        email: 'user-management@modus.local',
+        role: String(currentUserRole),
+      },
+      action: 'USER_ROLE_ASSIGN',
+      resource: 'users',
+      resourceId: userId,
+      description: `Changed role of user ${targetUser.email} from ${oldRole} to ${code}`,
+      metadata: {
+        previousRole: oldRole,
+        newRole: code,
+        userEmail: targetUser.email,
+        userHumanId: targetUser.humanId,
+      },
+      ipAddress,
+      userAgent,
+    });
+
+    return this.findOne(userId);
+  }
+
+  async getUserPermissions(userId: string): Promise<UserEffectivePermissions> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID format');
+    }
+
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isSuperAdmin = user.role === Role.SUPER_ADMIN;
+    let permissions: string[] = [];
+
+    if (isSuperAdmin) {
+      // Super Administrator possesses all registered permissions
+      permissions = this.accessControlService
+        .getAllPermissions()
+        .map((p) => p.id);
+    } else {
+      const roleDoc = await this.accessControlService.findRoleByCode(user.role);
+      if (roleDoc && roleDoc.isActive) {
+        permissions = roleDoc.permissions;
+      }
+    }
+
+    return {
+      userId: user._id.toString(),
+      humanId: user.humanId,
+      email: user.email,
+      role: user.role,
+      isSuperAdmin,
+      permissions,
+    };
+  }
+
   async updateStatus(
     id: string,
     dto: UpdateUserStatusDto,
     currentUserId: string,
-    currentUserRole: Role,
+    currentUserRole: Role | string,
   ): Promise<UserDocument> {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid user ID format');
@@ -450,7 +590,7 @@ export class UsersService {
       actor: {
         id: currentUserId,
         email: 'user-management@modus.local',
-        role: currentUserRole,
+        role: String(currentUserRole),
       },
       action: 'USER_STATUS_CHANGE',
       resource: 'users',

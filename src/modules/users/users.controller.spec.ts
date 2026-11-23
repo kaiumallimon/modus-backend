@@ -6,6 +6,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { AssignRoleDto } from './dto/assign-role.dto';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -17,6 +18,11 @@ describe('UsersController', () => {
     role: Role.SUPER_ADMIN,
   };
 
+  const mockReq: any = {
+    ip: '127.0.0.1',
+    headers: { 'user-agent': 'Jest-Agent' },
+  };
+
   beforeEach(async () => {
     mockUsersService = {
       createUser: jest.fn(),
@@ -24,6 +30,8 @@ describe('UsersController', () => {
       findOne: jest.fn(),
       update: jest.fn(),
       updateStatus: jest.fn(),
+      assignRole: jest.fn(),
+      getUserPermissions: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -90,6 +98,21 @@ describe('UsersController', () => {
     });
   });
 
+  describe('getUserPermissions', () => {
+    it('should delegate to usersService.getUserPermissions with id', async () => {
+      mockUsersService.getUserPermissions!.mockResolvedValue({
+        userId: 'user123',
+        role: 'MANAGER',
+        isSuperAdmin: false,
+        permissions: ['users.read'],
+      });
+
+      const result = await controller.getUserPermissions('user123');
+      expect(mockUsersService.getUserPermissions).toHaveBeenCalledWith('user123');
+      expect(result).toHaveProperty('permissions', ['users.read']);
+    });
+  });
+
   describe('update', () => {
     it('should delegate to usersService.update', async () => {
       const dto: UpdateUserDto = { firstName: 'Updated' };
@@ -106,6 +129,32 @@ describe('UsersController', () => {
         Role.SUPER_ADMIN,
       );
       expect(result).toHaveProperty('firstName', 'Updated');
+    });
+  });
+
+  describe('assignRole', () => {
+    it('should delegate to usersService.assignRole with audit metadata', async () => {
+      const dto: AssignRoleDto = { role: 'MANAGER' };
+      mockUsersService.assignRole!.mockResolvedValue({
+        id: 'user123',
+        role: 'MANAGER',
+      });
+
+      const result = await controller.assignRole(
+        'user123',
+        dto,
+        mockCurrentUser,
+        mockReq,
+      );
+      expect(mockUsersService.assignRole).toHaveBeenCalledWith(
+        'user123',
+        'MANAGER',
+        mockCurrentUser.userId,
+        mockCurrentUser.role,
+        mockReq.ip,
+        mockReq.headers['user-agent'],
+      );
+      expect(result).toHaveProperty('role', 'MANAGER');
     });
   });
 

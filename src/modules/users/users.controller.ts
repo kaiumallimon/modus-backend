@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -16,8 +17,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { UsersService } from './users.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import {
   CurrentUser,
   type CurrentUserPayload,
@@ -27,6 +30,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { AssignRoleDto } from './dto/assign-role.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -36,6 +40,7 @@ export class UsersController {
 
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @RequirePermissions('users.create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new user with generated credentials and assigned role',
@@ -58,6 +63,7 @@ export class UsersController {
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @RequirePermissions('users.read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get paginated list of users with optional filtering and search',
@@ -70,6 +76,7 @@ export class UsersController {
 
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @RequirePermissions('users.read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get single user by ID' })
   @ApiParam({ name: 'id', description: 'User MongoDB ID' })
@@ -80,8 +87,26 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
+  @Get(':id/permissions')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @RequirePermissions('roles.read')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get effective permissions of a user',
+    description:
+      'Returns the effective permissions for a user based on their assigned role, including whether they are a Super Administrator with full access.',
+  })
+  @ApiParam({ name: 'id', description: 'User MongoDB ID' })
+  @ApiResponse({ status: 200, description: 'Effective user permissions returned' })
+  @ApiResponse({ status: 400, description: 'Invalid user ID format' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  getUserPermissions(@Param('id') id: string) {
+    return this.usersService.getUserPermissions(id);
+  }
+
   @Patch(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @RequirePermissions('users.update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update user profile details (strictly SUPER_ADMIN for roles)',
@@ -107,8 +132,39 @@ export class UsersController {
     );
   }
 
+  @Patch(':id/role')
+  @Roles(Role.SUPER_ADMIN)
+  @RequirePermissions('roles.manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Assign role to user (Super Administrator only)',
+    description:
+      'Assigns a system or custom role to the user. Validates that the role exists and is active, and prevents demoting the last active Super Administrator.',
+  })
+  @ApiParam({ name: 'id', description: 'User MongoDB ID' })
+  @ApiResponse({ status: 200, description: 'Role assigned successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid user ID or inactive/unknown role' })
+  @ApiResponse({ status: 403, description: 'Forbidden (cannot demote the last active Super Administrator)' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  assignRole(
+    @Param('id') id: string,
+    @Body() dto: AssignRoleDto,
+    @CurrentUser() currentUser: CurrentUserPayload,
+    @Req() req: Request,
+  ) {
+    return this.usersService.assignRole(
+      id,
+      dto.role,
+      currentUser.userId,
+      currentUser.role,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
   @Patch(':id/status')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @RequirePermissions('users.update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Toggle user active/inactive status (cannot deactivate self)',

@@ -12,6 +12,7 @@ import { User } from './schemas/user.schema';
 import { Role } from './enums/role.enum';
 import { MailService } from '../mail/mail.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AccessControlService } from '../access-control/access-control.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -19,6 +20,10 @@ describe('UsersService', () => {
   let mockConnection: any;
   let mockSession: any;
   let mockMailService: Partial<Record<keyof MailService, jest.Mock>>;
+  let mockAccessControlService: {
+    findRoleByCode: jest.Mock;
+    getAllPermissions: jest.Mock;
+  };
 
   const validObjectId = new Types.ObjectId().toString();
 
@@ -51,6 +56,19 @@ describe('UsersService', () => {
       sendWelcomeCredentials: jest.fn().mockResolvedValue(true),
     };
 
+    mockAccessControlService = {
+      findRoleByCode: jest.fn().mockResolvedValue({
+        code: Role.EMPLOYEE,
+        name: 'Employee',
+        isActive: true,
+        permissions: ['organization.read'],
+      }),
+      getAllPermissions: jest.fn().mockReturnValue([
+        { id: 'users.read', name: 'Read users' },
+        { id: 'users.create', name: 'Create users' },
+      ]),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
@@ -72,6 +90,10 @@ describe('UsersService', () => {
             record: jest.fn().mockResolvedValue(null),
           },
         },
+        {
+          provide: AccessControlService,
+          useValue: mockAccessControlService,
+        },
       ],
     }).compile();
 
@@ -84,6 +106,12 @@ describe('UsersService', () => {
 
   describe('createUser', () => {
     it('should throw ForbiddenException if non-SUPER_ADMIN tries to create SUPER_ADMIN', async () => {
+      mockAccessControlService.findRoleByCode.mockResolvedValue({
+        code: Role.SUPER_ADMIN,
+        name: 'Super Admin',
+        isActive: true,
+      });
+
       await expect(
         service.createUser(
           {
@@ -95,6 +123,22 @@ describe('UsersService', () => {
           Role.ADMIN,
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw BadRequestException if role does not exist', async () => {
+      mockAccessControlService.findRoleByCode.mockResolvedValue(null);
+
+      await expect(
+        service.createUser(
+          {
+            email: 'user@modus.local',
+            firstName: 'User',
+            lastName: 'Test',
+            role: 'NONEXISTENT_ROLE',
+          },
+          Role.SUPER_ADMIN,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw ConflictException if email is already taken', async () => {
@@ -244,6 +288,113 @@ describe('UsersService', () => {
 
       const user = await service.findOne(validObjectId);
       expect(user).toHaveProperty('_id', validObjectId);
+    });
+  });
+
+  describe('assignRole', () => {
+    it('should update role when valid', async () => {
+      const mockUser = {
+        _id: validObjectId,
+        email: 'user@modus.local',
+        role: Role.EMPLOYEE,
+        save: jest.fn().mockResolvedValue(true),
+      };
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      });
+
+      mockAccessControlService.findRoleByCode.mockResolvedValue({
+        code: 'MANAGER',
+        name: 'Manager',
+        isActive: true,
+      });
+
+      mockUserModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(mockUser),
+      });
+      mockUserModel.findById.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue({
+            _id: validObjectId,
+            role: 'MANAGER',
+          }),
+        }),
+      });
+
+      const updated = await service.assignRole(
+        validObjectId,
+        'MANAGER',
+        'admin-id',
+        Role.SUPER_ADMIN,
+      );
+
+      expect(mockUser.role).toBe('MANAGER');
+      expect(mockUser.save).toHaveBeenCalled();
+      expect(updated.role).toBe('MANAGER');
+    });
+
+    it('should throw ForbiddenException if demoting the last active SUPER_ADMIN', async () => {
+      const mockAdminUser = {
+        _id: validObjectId,
+        email: 'super@modus.local',
+        role: Role.SUPER_ADMIN,
+        isActive: true,
+      };
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockAdminUser),
+      });
+      mockAccessControlService.findRoleByCode.mockResolvedValue({
+        code: Role.EMPLOYEE,
+        name: 'Employee',
+        isActive: true,
+      });
+      mockUserModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(1), // only 1 active super admin
+      });
+
+      await expect(
+        service.assignRole(
+          validObjectId,
+          Role.EMPLOYEE,
+          'admin-id',
+          Role.SUPER_ADMIN,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('getUserPermissions', () => {
+    it('should return all permissions for SUPER_ADMIN', async () => {
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: { toString: () => validObjectId },
+          email: 'admin@modus.local',
+          role: Role.SUPER_ADMIN,
+        }),
+      });
+
+      const perms = await service.getUserPermissions(validObjectId);
+      expect(perms.isSuperAdmin).toBe(true);
+      expect(perms.permissions).toEqual(['users.read', 'users.create']);
+    });
+
+    it('should return role permissions for standard roles', async () => {
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: { toString: () => validObjectId },
+          email: 'staff@modus.local',
+          role: 'CUSTOM_AUDITOR',
+        }),
+      });
+      mockAccessControlService.findRoleByCode.mockResolvedValue({
+        code: 'CUSTOM_AUDITOR',
+        isActive: true,
+        permissions: ['audit.read'],
+      });
+
+      const perms = await service.getUserPermissions(validObjectId);
+      expect(perms.isSuperAdmin).toBe(false);
+      expect(perms.permissions).toEqual(['audit.read']);
     });
   });
 

@@ -50,7 +50,7 @@ export class AuthService {
   async generateTokens(
     userId: string,
     email: string,
-    role: Role,
+    role: Role | string,
   ): Promise<AuthTokens> {
     const jwtPayload = {
       sub: userId,

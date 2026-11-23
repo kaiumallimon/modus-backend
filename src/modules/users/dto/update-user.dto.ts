@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { Role } from '../enums/role.enum';
 
 export class UpdateUserDto {
@@ -20,13 +20,11 @@ export class UpdateUserDto {
   lastName?: string;
 
   @ApiPropertyOptional({
-    enum: Role,
     example: Role.MANAGER,
-    description: 'Updated system role (strictly SUPER_ADMIN only)',
+    description:
+      'Updated system or custom role code (strictly SUPER_ADMIN only)',
   })
   @IsOptional()
-  @IsEnum(Role, {
-    message: `Role must be one of: ${Object.values(Role).join(', ')}`,
-  })
-  role?: Role;
+  @IsString()
+  role?: string;
 }
