@@ -66,11 +66,13 @@ export class UsersService {
 
   async findByIdentifier(identifier: string): Promise<UserDocument | null> {
     const trimmed = identifier.trim();
+    const compactUpper = trimmed.replace(/\s+/g, '').toUpperCase();
     const user = await this.userModel
       .findOne({
         $or: [
           { email: trimmed.toLowerCase() },
           { humanId: trimmed.toUpperCase() },
+          { humanId: compactUpper },
         ],
       })
       .exec();

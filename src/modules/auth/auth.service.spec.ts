@@ -171,6 +171,35 @@ describe('AuthService', () => {
       expect(result.user.humanId).toBe('MOD-10492');
       expect(result.tokens.accessToken).toBe('access123');
     });
+
+    it('should allow login with email only when identifier is omitted', async () => {
+      const mockUser = {
+        _id: 'user123',
+        humanId: 'MOD-10492',
+        email: 'user@modus.local',
+        firstName: 'John',
+        lastName: 'Doe',
+        role: Role.EMPLOYEE,
+        isActive: true,
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$dummyhash',
+      };
+      mockUsersService.findByIdentifier!.mockResolvedValue(mockUser);
+      jest.spyOn(authService, 'verifyHash').mockResolvedValue(true);
+      jest.spyOn(authService, 'generateTokens').mockResolvedValue({
+        accessToken: 'access123',
+        refreshToken: 'refresh123',
+      });
+      mockUsersService.updateHashedRefreshToken!.mockResolvedValue(mockUser);
+
+      const result = await authService.login({
+        email: 'user@modus.local',
+        password: 'ValidPassword123!',
+      });
+
+      expect(mockUsersService.findByIdentifier).toHaveBeenCalledWith('user@modus.local');
+      expect(result.user.email).toBe('user@modus.local');
+      expect(result.tokens.accessToken).toBe('access123');
+    });
   });
 
   describe('forgotPassword', () => {

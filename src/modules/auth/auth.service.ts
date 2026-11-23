@@ -145,12 +145,23 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ) {
-    const lookupKey = (dto.identifier || dto.email || '').trim();
+    const rawIdentifier = (dto.identifier || '').trim();
+    const rawEmail = (dto.email || '').trim();
+    const lookupKey = rawIdentifier || rawEmail;
+
     if (!lookupKey) {
       throw new UnauthorizedException('Email or User ID is required');
     }
 
-    const user = await this.usersService.findByIdentifier(lookupKey);
+    let user = await this.usersService.findByIdentifier(lookupKey);
+    // If not found by primary lookupKey but secondary was provided, attempt fallback
+    if (!user && rawEmail && rawEmail !== lookupKey) {
+      user = await this.usersService.findByIdentifier(rawEmail);
+    }
+    if (!user && rawIdentifier && rawIdentifier !== lookupKey) {
+      user = await this.usersService.findByIdentifier(rawIdentifier);
+    }
+
     if (!user || !user.isActive) {
       await this.auditLogService.record({
         actor: {
