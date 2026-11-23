@@ -165,6 +165,7 @@ export class StorageService {
     limit?: number;
     cursor?: string;
     search?: string;
+    delimiter?: string;
   }) {
     if (!this.s3Client || !this.bucketName) {
       return {
@@ -179,24 +180,28 @@ export class StorageService {
       };
     }
 
-    const limit = Math.min(100, Math.max(1, options.limit || 50));
-    const rawPrefix = options.prefix || '';
-    const prefix = rawPrefix && !rawPrefix.endsWith('/') ? `${rawPrefix}/` : rawPrefix;
+    const limit = Math.min(500, Math.max(1, options.limit || 100));
+    const rawPrefix = (options.prefix || '').trim();
+    const isAll = !rawPrefix || rawPrefix === 'all' || rawPrefix === 'root';
+    const prefix = !isAll ? (rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}/`) : '';
 
     try {
+      // When no folder prefix is requested (default), do not set Delimiter so ALL files in the bucket are returned.
+      // When a specific folder prefix is requested, set Prefix so only that folder's contents are returned.
       const command = new ListObjectsV2Command({
         Bucket: this.bucketName,
-        Prefix: prefix,
-        Delimiter: '/',
+        Prefix: prefix || undefined,
+        Delimiter: options.delimiter ? options.delimiter : undefined,
         MaxKeys: limit,
         ContinuationToken: options.cursor || undefined,
       });
 
       const response = await this.s3Client.send(command);
 
-      const folders = (response.CommonPrefixes || [])
-        .map((p) => p.Prefix || '')
-        .filter(Boolean);
+      const folderSet = new Set<string>();
+      (response.CommonPrefixes || []).forEach((p) => {
+        if (p.Prefix) folderSet.add(p.Prefix);
+      });
 
       const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'avif', 'ico']);
 
@@ -204,6 +209,10 @@ export class StorageService {
         .filter((obj) => obj.Key && obj.Key !== prefix && !obj.Key.endsWith('/'))
         .map((obj) => {
           const key = obj.Key!;
+          if (key.includes('/')) {
+            const folderPart = key.substring(0, key.lastIndexOf('/') + 1);
+            folderSet.add(folderPart);
+          }
           const name = key.split('/').filter(Boolean).pop() || key;
           const ext = name.split('.').pop()?.toLowerCase() || '';
           const size = obj.Size || 0;
@@ -229,13 +238,15 @@ export class StorageService {
         );
       }
 
+      const folders = Array.from(folderSet).sort();
+
       return {
         objects,
         folders,
         continuationToken: response.NextContinuationToken || null,
         hasMore: Boolean(response.IsTruncated),
         totalCount: objects.length,
-        currentPrefix: prefix,
+        currentPrefix: rawPrefix,
         bucket: this.bucketName,
         publicBaseUrl: this.publicBaseUrl,
       };
