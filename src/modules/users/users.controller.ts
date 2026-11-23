@@ -109,11 +109,11 @@ export class UsersController {
   @RequirePermissions('users.update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Update user profile details (strictly SUPER_ADMIN for roles)',
+    summary: 'Update user profile details (strictly SUPER_ADMIN for roles; self-role modification prohibited)',
   })
   @ApiParam({ name: 'id', description: 'User MongoDB ID' })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid payload or ID format' })
+  @ApiResponse({ status: 400, description: 'Invalid payload, ID format, or attempting to change own role' })
   @ApiResponse({
     status: 403,
     description: 'Forbidden (modifying role without SUPER_ADMIN)',
@@ -139,11 +139,11 @@ export class UsersController {
   @ApiOperation({
     summary: 'Assign role to user (Super Administrator only)',
     description:
-      'Assigns a system or custom role to the user. Validates that the role exists and is active, and prevents demoting the last active Super Administrator.',
+      'Assigns a system or custom role to the user. Validates that the role exists and is active, prevents demoting the last active Super Administrator, and prevents current logged in super user from changing their own role.',
   })
   @ApiParam({ name: 'id', description: 'User MongoDB ID' })
   @ApiResponse({ status: 200, description: 'Role assigned successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid user ID or inactive/unknown role' })
+  @ApiResponse({ status: 400, description: 'Invalid user ID, inactive/unknown role, or attempting to change own role' })
   @ApiResponse({ status: 403, description: 'Forbidden (cannot demote the last active Super Administrator)' })
   @ApiResponse({ status: 404, description: 'User not found' })
   assignRole(

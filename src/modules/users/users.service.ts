@@ -360,7 +360,7 @@ export class UsersService {
   async update(
     id: string,
     dto: UpdateUserDto,
-    _currentUserId: string,
+    currentUserId: string,
     currentUserRole: Role | string,
   ): Promise<UserDocument> {
     if (!Types.ObjectId.isValid(id)) {
@@ -381,6 +381,19 @@ export class UsersService {
       if (dto.role !== undefined && dto.role !== targetUser.role) {
         throw new ForbiddenException(
           'Only SUPER_ADMIN can modify user roles or promote users',
+        );
+      }
+    }
+
+    if (dto.role !== undefined) {
+      const normalizedRole = dto.role.toUpperCase().trim();
+      const isSelf =
+        String(id) === String(currentUserId) ||
+        targetUser._id.toString() === String(currentUserId);
+
+      if (isSelf && normalizedRole !== targetUser.role) {
+        throw new BadRequestException(
+          'Current logged in super user cannot change their own role',
         );
       }
     }
@@ -421,7 +434,7 @@ export class UsersService {
 
     await this.auditLogService.record({
       actor: {
-        id: _currentUserId,
+        id: currentUserId,
         email: 'user-management@modus.local',
         role: String(currentUserRole),
       },
@@ -450,6 +463,15 @@ export class UsersService {
     const targetUser = await this.userModel.findById(userId).exec();
     if (!targetUser) {
       throw new NotFoundException('User not found');
+    }
+
+    if (
+      String(userId) === String(currentUserId) ||
+      targetUser._id.toString() === String(currentUserId)
+    ) {
+      throw new BadRequestException(
+        'Current logged in super user cannot change their own role',
+      );
     }
 
     const code = newRoleCode.toUpperCase().trim();

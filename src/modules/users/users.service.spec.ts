@@ -361,6 +361,27 @@ describe('UsersService', () => {
         ),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('should throw BadRequestException if current logged in super user attempts to change their own role', async () => {
+      const mockAdminUser = {
+        _id: validObjectId,
+        email: 'super@modus.local',
+        role: Role.SUPER_ADMIN,
+        isActive: true,
+      };
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockAdminUser),
+      });
+
+      await expect(
+        service.assignRole(
+          validObjectId,
+          Role.ADMIN,
+          validObjectId,
+          Role.SUPER_ADMIN,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('getUserPermissions', () => {
@@ -433,6 +454,51 @@ describe('UsersService', () => {
           Role.ADMIN,
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw BadRequestException if current logged in super user attempts to change their own role', async () => {
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: { toString: () => validObjectId },
+          role: Role.SUPER_ADMIN,
+        }),
+      });
+
+      await expect(
+        service.update(
+          validObjectId,
+          { role: Role.ADMIN },
+          validObjectId,
+          Role.SUPER_ADMIN,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should allow current logged in super user to update their own profile fields without role change', async () => {
+      const mockAdmin = {
+        _id: { toString: () => validObjectId },
+        role: Role.SUPER_ADMIN,
+        firstName: 'Old',
+        lastName: 'Admin',
+        email: 'admin@modus.local',
+        save: jest.fn().mockResolvedValue(true),
+      };
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockAdmin),
+        select: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(mockAdmin),
+        }),
+      });
+
+      const res = await service.update(
+        validObjectId,
+        { firstName: 'New' },
+        validObjectId,
+        Role.SUPER_ADMIN,
+      );
+      expect(mockAdmin.firstName).toBe('New');
+      expect(mockAdmin.save).toHaveBeenCalled();
+      expect(res).toBeDefined();
     });
   });
 
