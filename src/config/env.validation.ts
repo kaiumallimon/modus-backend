@@ -6,8 +6,9 @@ export const envValidationSchema = Joi.object({
     .default('development'),
 
   APP_NAME: Joi.string().default('Modus'),
+  APP_URL: Joi.string().uri().optional(),
 
-  PORT: Joi.number().port().default(8000),
+  PORT: Joi.number().port().default(3000),
 
   API_PREFIX: Joi.string().default('api/v1'),
 
@@ -20,8 +21,11 @@ export const envValidationSchema = Joi.object({
 
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
   JWT_REFRESH_SECRET: Joi.string().min(32).required(),
-  JWT_ACCESS_TTL: Joi.string().default('15m'),
-  JWT_REFRESH_TTL: Joi.string().default('7d'),
+  JWT_ACCESS_EXPIRES_IN: Joi.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: Joi.string().default('7d'),
+  JWT_ACCESS_TTL: Joi.string().optional(),
+  JWT_REFRESH_TTL: Joi.string().optional(),
+
   CORS_ORIGIN: Joi.string().required(),
 
   // Google SMTP Settings (Port 465 SSL)

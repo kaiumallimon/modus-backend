@@ -37,18 +37,30 @@ describe('HealthController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('should return healthy status when database is connected', () => {
-    mockConnection.readyState = 1;
-    const result = controller.check();
-
-    expect(result.status).toBe('ok');
-    expect(result.service).toBe('Modus');
-    expect(result.dependencies.database.status).toBe('connected');
+  describe('check (GET /health)', () => {
+    it('should return process ok status with application name', () => {
+      const result = controller.check();
+      expect(result).toEqual({
+        status: 'ok',
+        application: 'Modus',
+      });
+    });
   });
 
-  it('should throw ServiceUnavailableException when database is disconnected', () => {
-    mockConnection.readyState = 0;
+  describe('ready (GET /health/ready)', () => {
+    it('should return ready status when database is connected', () => {
+      mockConnection.readyState = 1;
+      const result = controller.ready();
 
-    expect(() => controller.check()).toThrow(ServiceUnavailableException);
+      expect(result.status).toBe('ok');
+      expect(result.application).toBe('Modus');
+      expect(result.dependencies.database.status).toBe('connected');
+    });
+
+    it('should throw ServiceUnavailableException when database is disconnected', () => {
+      mockConnection.readyState = 0;
+
+      expect(() => controller.ready()).toThrow(ServiceUnavailableException);
+    });
   });
 });

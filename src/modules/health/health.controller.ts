@@ -22,21 +22,41 @@ export class HealthController {
   @Public()
   @Get()
   @ApiOperation({
-    summary: 'Check API and database health',
+    summary: 'Process health check',
+    description: 'Verifies that the Modus application process is running.',
   })
-  @ApiResponse({ status: 200, description: 'Service is healthy' })
+  @ApiResponse({ status: 200, description: 'Application process is alive' })
+  check() {
+    return {
+      status: 'ok',
+      application: this.configService.get<string>('app.name', 'Modus'),
+    };
+  }
+
+  @Public()
+  @Get('ready')
+  @ApiOperation({
+    summary: 'Readiness check',
+    description:
+      'Verifies that the application and its dependencies (MongoDB) are ready to serve requests.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application is ready and database is connected',
+  })
   @ApiResponse({
     status: 503,
-    description: 'Service is degraded (database unavailable)',
+    description: 'Application is not ready (database disconnected)',
   })
-  check() {
+  ready() {
     const isDatabaseConnected = this.connection.readyState === 1;
+
     const response = {
       status: isDatabaseConnected ? 'ok' : 'degraded',
       statusCode: isDatabaseConnected
         ? HttpStatus.OK
         : HttpStatus.SERVICE_UNAVAILABLE,
-      service: this.configService.get<string>('app.name', 'Modus'),
+      application: this.configService.get<string>('app.name', 'Modus'),
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       dependencies: {

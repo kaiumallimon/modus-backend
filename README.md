@@ -46,10 +46,16 @@ $ npm run build
 $ npm run start:prod
 ```
 
-## API Documentation
+## API Documentation & Endpoints
 
 Interactive Swagger documentation is available once the server is running:
-- **URL**: `http://localhost:8000/api/v1/docs`
+- **Swagger Documentation**: `http://localhost:8000/api/docs`
+
+### Core Infrastructure Endpoints
+
+- **GET /api/v1/health**: Lightweight process liveness check (`{ status: 'ok', application: 'Modus' }`).
+- **GET /api/v1/health/ready**: System dependency readiness check (verifies MongoDB connectivity; returns 503 if disconnected).
+- **GET /api/v1/installation/status**: Installation lifecycle state (`{ isInitialized, initializedAt, version }`).
 
 ## Running Tests
 
