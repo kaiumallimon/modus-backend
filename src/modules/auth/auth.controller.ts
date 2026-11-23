@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -12,6 +13,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -20,6 +22,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -48,8 +51,10 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid email/ID or password' })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @Req() req?: Request) {
+    const ipAddress = req?.ip || req?.socket?.remoteAddress;
+    const userAgent = req?.headers ? req.headers['user-agent'] : undefined;
+    return this.authService.login(dto, ipAddress, userAgent);
   }
 
   @Public()
@@ -106,8 +111,30 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout current user and invalidate refresh token' })
   @ApiResponse({ status: 200, description: 'Logged out successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  logout(@CurrentUser('userId') userId: string) {
-    return this.authService.logout(userId);
+  logout(@CurrentUser('userId') userId: string, @Req() req?: Request) {
+    const ipAddress = req?.ip || req?.socket?.remoteAddress;
+    const userAgent = req?.headers ? req.headers['user-agent'] : undefined;
+    return this.authService.logout(userId, ipAddress, userAgent);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Change authenticated user password and invalidate active refresh tokens',
+    description:
+      'Requires valid current password and securely updates to new Argon2 hashed password, revoking any active refresh token sessions.',
+  })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 401, description: 'Invalid current password' })
+  changePassword(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: ChangePasswordDto,
+    @Req() req?: Request,
+  ) {
+    const ipAddress = req?.ip || req?.socket?.remoteAddress;
+    const userAgent = req?.headers ? req.headers['user-agent'] : undefined;
+    return this.authService.changePassword(userId, dto, ipAddress, userAgent);
   }
 
   @Get('me')

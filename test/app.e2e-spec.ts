@@ -41,6 +41,8 @@ describe('AppController (e2e)', () => {
       .get('/api/v1/installation/status')
       .expect(200);
 
+    expect(res.body).toHaveProperty('initialized');
+    expect(res.body).toHaveProperty('setupRequired');
     expect(res.body).toHaveProperty('isInitialized');
     expect(res.body).toHaveProperty('version');
   });

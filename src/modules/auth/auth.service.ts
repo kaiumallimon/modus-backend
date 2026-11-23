@@ -16,7 +16,9 @@ import { SeedSuperAdminDto } from './dto/seed-super-admin.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 export interface AuthTokens {
   accessToken: string;
@@ -30,6 +32,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async hashData(data: string): Promise<string> {
@@ -137,7 +140,11 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto) {
+  async login(
+    dto: LoginDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const lookupKey = (dto.identifier || dto.email || '').trim();
     if (!lookupKey) {
       throw new UnauthorizedException('Email or User ID is required');
@@ -145,6 +152,18 @@ export class AuthService {
 
     const user = await this.usersService.findByIdentifier(lookupKey);
     if (!user || !user.isActive) {
+      await this.auditLogService.record({
+        actor: {
+          id: user ? user._id.toString() : 'unknown',
+          email: lookupKey,
+        },
+        action: 'AUTH_LOGIN_FAILED',
+        resource: 'auth',
+        description: `Failed login attempt for identifier: ${lookupKey}`,
+        metadata: { identifier: lookupKey, reason: !user ? 'not_found' : 'inactive' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Invalid email/ID or password');
     }
 
@@ -153,6 +172,21 @@ export class AuthService {
       dto.password,
     );
     if (!isPasswordValid) {
+      await this.auditLogService.record({
+        actor: {
+          id: user._id.toString(),
+          email: user.email,
+          humanId: user.humanId,
+          role: user.role,
+        },
+        action: 'AUTH_LOGIN_FAILED',
+        resource: 'auth',
+        resourceId: user._id.toString(),
+        description: `Failed password login attempt for ${user.email}`,
+        metadata: { identifier: lookupKey, reason: 'invalid_password' },
+        ipAddress,
+        userAgent,
+      });
       throw new UnauthorizedException('Invalid email/ID or password');
     }
 
@@ -167,6 +201,22 @@ export class AuthService {
       user._id.toString(),
       hashedRefreshToken,
     );
+
+    await this.auditLogService.record({
+      actor: {
+        id: user._id.toString(),
+        email: user.email,
+        humanId: user.humanId,
+        role: user.role,
+      },
+      action: 'AUTH_LOGIN_SUCCESS',
+      resource: 'auth',
+      resourceId: user._id.toString(),
+      description: `User ${user.email} logged in successfully`,
+      metadata: { humanId: user.humanId, role: user.role },
+      ipAddress,
+      userAgent,
+    });
 
     return {
       user: {
@@ -227,11 +277,78 @@ export class AuthService {
     return tokens;
   }
 
-  async logout(userId: string) {
+  async logout(
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const user = await this.usersService.findById(userId);
     await this.usersService.updateHashedRefreshToken(userId, null);
+
+    if (user) {
+      await this.auditLogService.record({
+        actor: {
+          id: user._id.toString(),
+          email: user.email,
+          humanId: user.humanId,
+          role: user.role,
+        },
+        action: 'AUTH_LOGOUT',
+        resource: 'auth',
+        resourceId: user._id.toString(),
+        description: `User ${user.email} logged out`,
+        ipAddress,
+        userAgent,
+      });
+    }
+
     return {
       success: true,
       message: 'Successfully logged out',
+    };
+  }
+
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Account not found or inactive');
+    }
+
+    const isCurrentValid = await this.verifyHash(
+      user.passwordHash,
+      dto.currentPassword,
+    );
+    if (!isCurrentValid) {
+      throw new UnauthorizedException('Invalid current password');
+    }
+
+    user.passwordHash = await this.hashData(dto.newPassword);
+    // Invalidate existing sessions on password change
+    user.hashedRefreshToken = null;
+    await user.save();
+
+    await this.auditLogService.record({
+      actor: {
+        id: user._id.toString(),
+        email: user.email,
+        humanId: user.humanId,
+        role: user.role,
+      },
+      action: 'AUTH_PASSWORD_CHANGE',
+      resource: 'auth',
+      resourceId: user._id.toString(),
+      description: `User ${user.email} successfully changed their password`,
+      ipAddress,
+      userAgent,
+    });
+
+    return {
+      message: 'Password changed successfully. Please log in with your new password.',
     };
   }
 
@@ -299,6 +416,19 @@ export class AuthService {
     // Revoke all active login refresh tokens
     user.hashedRefreshToken = null;
     await user.save();
+
+    await this.auditLogService.record({
+      actor: {
+        id: user._id ? user._id.toString() : 'unknown',
+        email: user.email,
+        humanId: user.humanId,
+        role: user.role,
+      },
+      action: 'AUTH_PASSWORD_RESET',
+      resource: 'auth',
+      resourceId: user._id ? user._id.toString() : undefined,
+      description: `User ${user.email} reset password using single-use token`,
+    });
 
     return {
       message:

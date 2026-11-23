@@ -10,8 +10,14 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { MailModule } from './modules/mail/mail.module';
 import { InstallationModule } from './modules/installation/installation.module';
+import { AccessControlModule } from './modules/access-control/access-control.module';
+import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { OrganizationModule } from './modules/organization/organization.module';
+import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
+import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { PermissionsGuard } from './common/guards/permissions.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
@@ -70,6 +76,11 @@ import { envValidationSchema } from './config/env.validation';
     UsersModule,
     AuthModule,
     InstallationModule,
+    AccessControlModule,
+    AuditLogModule,
+    OrganizationModule,
+    SystemSettingsModule,
+    ModuleRegistryModule,
   ],
   controllers: [AppController],
   providers: [
@@ -85,6 +96,10 @@ import { envValidationSchema } from './config/env.validation';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
     },
   ],
 })

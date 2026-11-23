@@ -51,11 +51,58 @@ $ npm run start:prod
 Interactive Swagger documentation is available once the server is running:
 - **Swagger Documentation**: `http://localhost:8000/api/docs`
 
-### Core Infrastructure Endpoints
+### Core Infrastructure & API Endpoints
 
-- **GET /api/v1/health**: Lightweight process liveness check (`{ status: 'ok', application: 'Modus' }`).
-- **GET /api/v1/health/ready**: System dependency readiness check (verifies MongoDB connectivity; returns 503 if disconnected).
-- **GET /api/v1/installation/status**: Installation lifecycle state (`{ isInitialized, initializedAt, version }`).
+Interactive Swagger documentation is available once the server is running at `http://localhost:8000/api/docs`.
+
+#### 1. Installation Setup & Lifecycle
+- `GET /api/v1/installation/status`: Check whether installation requires initial setup (`{ initialized, setupRequired, version }`).
+- `POST /api/v1/installation/setup`: Atomically bootstrap initial Super Admin, organization profile, system settings, default roles/permissions, and core modules.
+
+#### 2. Authentication
+- `POST /api/v1/auth/login`: Authenticate via email or human-readable ID (`MOD-xxxxx`).
+- `POST /api/v1/auth/refresh`: Rotate and refresh JWT access and refresh token pair.
+- `POST /api/v1/auth/logout`: Revoke active refresh session.
+- `POST /api/v1/auth/change-password`: Change authenticated user password (invalidates existing refresh tokens).
+- `POST /api/v1/auth/forgot-password`: Request single-use password reset token via email.
+- `POST /api/v1/auth/reset-password`: Reset password using single-use email token.
+- `GET /api/v1/auth/me`: Current authenticated user profile.
+
+#### 3. User Management
+- `GET /api/v1/users`: Paginated user list with role and status filtering.
+- `GET /api/v1/users/:id`: Single user details.
+- `POST /api/v1/users`: Create user with transactional email verification & temporary credentials.
+- `PATCH /api/v1/users/:id`: Update user profile details.
+- `PATCH /api/v1/users/:id/status`: Activate or deactivate account (last active Super Admin is protected).
+
+#### 4. Access Control (RBAC)
+- `GET /api/v1/roles`: List all system and custom roles with permissions.
+- `GET /api/v1/roles/:id`: View role details.
+- `POST /api/v1/roles`: Create custom role.
+- `PATCH /api/v1/roles/:id`: Update role permissions.
+- `DELETE /api/v1/roles/:id`: Delete custom role (system roles protected).
+- `GET /api/v1/permissions`: Master permission registry (core and module permissions).
+
+#### 5. Organization Settings
+- `GET /api/v1/organization`: View single-organization profile and localization settings.
+- `PATCH /api/v1/organization`: Update organization details, currency, timezone, and locale.
+
+#### 6. System Settings
+- `GET /api/v1/settings`: View application-level preferences and pagination defaults.
+- `PATCH /api/v1/settings`: Update application-level preferences (secrets strictly prevented).
+
+#### 7. Module Registry
+- `GET /api/v1/modules`: List all registered modules and activation state.
+- `GET /api/v1/modules/:id`: View module metadata and dependencies.
+- `PATCH /api/v1/modules/:id/activation`: Activate or deactivate a module (dependency checking & core module protection).
+
+#### 8. Audit Logging
+- `GET /api/v1/audit-logs`: Paginated immutable historical audit log.
+- `GET /api/v1/audit-logs/:id`: Single audit log details.
+
+#### 9. Health & Readiness
+- `GET /api/v1/health`: Process liveness check (`{ status: 'ok', application: 'Modus' }`).
+- `GET /api/v1/health/ready`: Database dependency readiness check (MongoDB connectivity).
 
 ## Running Tests
 

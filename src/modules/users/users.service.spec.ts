@@ -11,6 +11,7 @@ import { UsersService } from './users.service';
 import { User } from './schemas/user.schema';
 import { Role } from './enums/role.enum';
 import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -64,6 +65,12 @@ describe('UsersService', () => {
         {
           provide: MailService,
           useValue: mockMailService,
+        },
+        {
+          provide: AuditLogService,
+          useValue: {
+            record: jest.fn().mockResolvedValue(null),
+          },
         },
       ],
     }).compile();

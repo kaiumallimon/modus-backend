@@ -17,6 +17,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { generateHumanReadablePassword } from './utils/password.util';
 import { generateHumanId } from './utils/human-id.util';
 
@@ -40,6 +41,7 @@ export class UsersService {
     @InjectConnection()
     private readonly connection: Connection,
     private readonly mailService: MailService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async generateUniqueHumanId(): Promise<string> {
@@ -95,6 +97,12 @@ export class UsersService {
     return this.userModel.countDocuments({ role: Role.SUPER_ADMIN }).exec();
   }
 
+  async countActiveSuperAdmins(): Promise<number> {
+    return this.userModel
+      .countDocuments({ role: Role.SUPER_ADMIN, isActive: true })
+      .exec();
+  }
+
   async updateHashedRefreshToken(
     userId: string,
     hashedRefreshToken: string | null,
@@ -105,6 +113,15 @@ export class UsersService {
   }
 
   async deleteById(userId: string): Promise<UserDocument | null> {
+    const target = await this.userModel.findById(userId).exec();
+    if (target && target.role === Role.SUPER_ADMIN && target.isActive) {
+      const activeAdmins = await this.countActiveSuperAdmins();
+      if (activeAdmins <= 1) {
+        throw new ForbiddenException(
+          'Cannot delete the last active Super Administrator',
+        );
+      }
+    }
     return this.userModel.findByIdAndDelete(userId).exec();
   }
 
@@ -213,6 +230,23 @@ export class UsersService {
       if (session) {
         await session.commitTransaction();
       }
+
+      await this.auditLogService.record({
+        actor: {
+          id: 'system',
+          email: 'user-management@modus.local',
+          role: creatorRole,
+        },
+        action: 'USER_CREATE',
+        resource: 'users',
+        resourceId: createdUserId,
+        description: `Created user ${savedUser.email} with role ${savedUser.role}`,
+        metadata: {
+          email: savedUser.email,
+          role: savedUser.role,
+          humanId: savedUser.humanId,
+        },
+      });
 
       return this.findOne(createdUserId);
     } catch (error) {
@@ -332,10 +366,35 @@ export class UsersService {
       targetUser.lastName = dto.lastName;
     }
     if (dto.role !== undefined && currentUserRole === Role.SUPER_ADMIN) {
+      if (
+        targetUser.role === Role.SUPER_ADMIN &&
+        dto.role !== Role.SUPER_ADMIN
+      ) {
+        const activeAdmins = await this.countActiveSuperAdmins();
+        if (activeAdmins <= 1 && targetUser.isActive) {
+          throw new ForbiddenException(
+            'Cannot demote the last active Super Administrator',
+          );
+        }
+      }
       targetUser.role = dto.role;
     }
 
     await targetUser.save();
+
+    await this.auditLogService.record({
+      actor: {
+        id: _currentUserId,
+        email: 'user-management@modus.local',
+        role: currentUserRole,
+      },
+      action: 'USER_UPDATE',
+      resource: 'users',
+      resourceId: id,
+      description: `Updated profile for user ${targetUser.email}`,
+      metadata: { updatedFields: Object.keys(dto) },
+    });
+
     return this.findOne(id);
   }
 
@@ -369,12 +428,35 @@ export class UsersService {
       );
     }
 
+    if (targetUser.role === Role.SUPER_ADMIN && dto.isActive === false) {
+      const activeAdmins = await this.countActiveSuperAdmins();
+      if (activeAdmins <= 1) {
+        throw new ForbiddenException(
+          'Cannot deactivate the last active Super Administrator',
+        );
+      }
+    }
+
     targetUser.isActive = dto.isActive;
     if (!dto.isActive) {
       targetUser.hashedRefreshToken = null;
     }
 
     await targetUser.save();
+
+    await this.auditLogService.record({
+      actor: {
+        id: currentUserId,
+        email: 'user-management@modus.local',
+        role: currentUserRole,
+      },
+      action: 'USER_STATUS_CHANGE',
+      resource: 'users',
+      resourceId: id,
+      description: `User ${targetUser.email} status set to ${dto.isActive ? 'active' : 'inactive'}`,
+      metadata: { isActive: dto.isActive },
+    });
+
     return this.findOne(id);
   }
 }
