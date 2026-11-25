@@ -60,7 +60,7 @@ describe('InstallationController', () => {
     it('should delegate setupInstallation to service', async () => {
       const dto: any = {
         administrator: { email: 'admin@modus.local' },
-        organization: { name: 'Modus Org' },
+        settings: { defaultCurrency: 'USD' },
       };
       mockInstallationService.setupInstallation.mockResolvedValue({
         success: true,

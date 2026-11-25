@@ -57,7 +57,7 @@ export class InstallationController {
   @ApiOperation({
     summary: 'Initial installation bootstrap and first administrator creation',
     description:
-      'Atomically creates the first Super Administrator, initializes organization profile, system settings, default roles and permissions, registers core modules, and seals the installation.',
+      'Atomically creates the first Super Administrator, initializes system settings, default roles and permissions, registers core modules, and seals the installation.',
   })
   @ApiResponse({ status: 201, description: 'Installation successfully initialized' })
   @ApiResponse({

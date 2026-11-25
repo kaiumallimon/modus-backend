@@ -57,7 +57,7 @@ Interactive Swagger documentation is available once the server is running at `ht
 
 #### 1. Installation Setup & Lifecycle
 - `GET /api/v1/installation/status`: Check whether installation requires initial setup (`{ initialized, setupRequired, version }`).
-- `POST /api/v1/installation/setup`: Atomically bootstrap initial Super Admin, organization profile, system settings, default roles/permissions, and core modules.
+- `POST /api/v1/installation/setup`: Atomically bootstrap initial Super Admin, system settings, default roles/permissions, and core modules.
 
 #### 2. Authentication
 - `POST /api/v1/auth/login`: Authenticate via email or human-readable ID (`MOD-xxxxx`).
@@ -83,24 +83,20 @@ Interactive Swagger documentation is available once the server is running at `ht
 - `DELETE /api/v1/roles/:id`: Delete custom role (system roles protected).
 - `GET /api/v1/permissions`: Master permission registry (core and module permissions).
 
-#### 5. Organization Settings
-- `GET /api/v1/organization`: View single-organization profile and localization settings.
-- `PATCH /api/v1/organization`: Update organization details, currency, timezone, and locale.
-
-#### 6. System Settings
+#### 5. System Settings
 - `GET /api/v1/settings`: View application-level preferences and pagination defaults.
 - `PATCH /api/v1/settings`: Update application-level preferences (secrets strictly prevented).
 
-#### 7. Module Registry
+#### 6. Module Registry
 - `GET /api/v1/modules`: List all registered modules and activation state.
 - `GET /api/v1/modules/:id`: View module metadata and dependencies.
 - `PATCH /api/v1/modules/:id/activation`: Activate or deactivate a module (dependency checking & core module protection).
 
-#### 8. Audit Logging
+#### 7. Audit Logging
 - `GET /api/v1/audit-logs`: Paginated immutable historical audit log.
 - `GET /api/v1/audit-logs/:id`: Single audit log details.
 
-#### 9. Health & Readiness
+#### 8. Health & Readiness
 - `GET /api/v1/health`: Process liveness check (`{ status: 'ok', application: 'Modus' }`).
 - `GET /api/v1/health/ready`: Database dependency readiness check (MongoDB connectivity).
 

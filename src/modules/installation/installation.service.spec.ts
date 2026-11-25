@@ -9,7 +9,6 @@ import {
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 import { AccessControlService } from '../access-control/access-control.service';
-import { OrganizationService } from '../organization/organization.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -20,7 +19,6 @@ describe('InstallationService', () => {
   let mockUsersService: any;
   let mockAuthService: any;
   let mockAccessControlService: any;
-  let mockOrganizationService: any;
   let mockSystemSettingsService: any;
   let mockModuleRegistryService: any;
   let mockAuditLogService: any;
@@ -50,16 +48,12 @@ describe('InstallationService', () => {
       initializeDefaultRolesAndPermissions: jest.fn().mockResolvedValue(undefined),
     };
 
-    mockOrganizationService = {
-      getOrCreateSettings: jest.fn().mockResolvedValue({
-        name: 'Modus Test Org',
-        email: 'contact@modus.local',
-        currency: 'USD',
-      }),
-    };
-
     mockSystemSettingsService = {
-      getOrCreateSettings: jest.fn().mockResolvedValue({}),
+      getOrCreateSettings: jest.fn().mockResolvedValue({
+        defaultCurrency: 'USD',
+        defaultTimezone: 'UTC',
+        defaultLocale: 'en-US',
+      }),
     };
 
     mockModuleRegistryService = {
@@ -80,7 +74,6 @@ describe('InstallationService', () => {
         { provide: UsersService, useValue: mockUsersService },
         { provide: AuthService, useValue: mockAuthService },
         { provide: AccessControlService, useValue: mockAccessControlService },
-        { provide: OrganizationService, useValue: mockOrganizationService },
         { provide: SystemSettingsService, useValue: mockSystemSettingsService },
         { provide: ModuleRegistryService, useValue: mockModuleRegistryService },
         { provide: AuditLogService, useValue: mockAuditLogService },
@@ -221,9 +214,8 @@ describe('InstallationService', () => {
             email: 'admin@modus.local',
             password: 'Password123!',
           },
-          organization: {
-            name: 'Modus Corp',
-            email: 'contact@modus.local',
+          settings: {
+            defaultCurrency: 'USD',
           },
         }),
       ).rejects.toThrow(ForbiddenException);
@@ -243,9 +235,8 @@ describe('InstallationService', () => {
             email: 'admin@modus.local',
             password: 'Password123!',
           },
-          organization: {
-            name: 'Modus Corp',
-            email: 'contact@modus.local',
+          settings: {
+            defaultCurrency: 'USD',
           },
         }),
       ).rejects.toThrow(ConflictException);
@@ -283,10 +274,10 @@ describe('InstallationService', () => {
           email: 'admin@modus.local',
           password: 'Password123!',
         },
-        organization: {
-          name: 'Modus Corp',
-          email: 'contact@modus.local',
-          currency: 'USD',
+        settings: {
+          defaultCurrency: 'USD',
+          defaultTimezone: 'UTC',
+          defaultLocale: 'en-US',
         },
       });
 
@@ -294,7 +285,11 @@ describe('InstallationService', () => {
       expect(result.administrator.email).toBe('admin@modus.local');
       expect(mockAccessControlService.initializeDefaultRolesAndPermissions).toHaveBeenCalled();
       expect(mockModuleRegistryService.initializeCoreModules).toHaveBeenCalled();
-      expect(mockOrganizationService.getOrCreateSettings).toHaveBeenCalled();
+      expect(mockSystemSettingsService.getOrCreateSettings).toHaveBeenCalledWith({
+        defaultCurrency: 'USD',
+        defaultTimezone: 'UTC',
+        defaultLocale: 'en-US',
+      });
       expect(mockAuditLogService.record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'INITIAL_SETUP_COMPLETED',

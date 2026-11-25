@@ -8,7 +8,6 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { AddressDto } from '../../organization/dto/update-organization.dto';
 
 export class AdminSetupDto {
   @ApiProperty({ example: 'John' })
@@ -31,51 +30,21 @@ export class AdminSetupDto {
   password: string;
 }
 
-export class OrganizationSetupDto {
-  @ApiProperty({ example: 'Acme Corporation' })
-  @IsString()
-  @IsNotEmpty()
-  name: string;
-
-  @ApiPropertyOptional({ example: 'Acme Corporation Ltd.' })
-  @IsString()
-  @IsOptional()
-  legalName?: string;
-
-  @ApiProperty({ example: 'contact@acme.com' })
-  @IsEmail()
-  email: string;
-
-  @ApiPropertyOptional({ example: '+1-555-0100' })
-  @IsString()
-  @IsOptional()
-  phone?: string;
-
-  @ApiPropertyOptional({ example: 'https://acme.com' })
-  @IsString()
-  @IsOptional()
-  website?: string;
-
-  @ApiPropertyOptional({ type: AddressDto })
-  @ValidateNested()
-  @Type(() => AddressDto)
-  @IsOptional()
-  address?: AddressDto;
-
+export class SystemSetupDto {
   @ApiPropertyOptional({ example: 'USD', default: 'USD' })
   @IsString()
   @IsOptional()
-  currency?: string;
+  defaultCurrency?: string;
 
   @ApiPropertyOptional({ example: 'UTC', default: 'UTC' })
   @IsString()
   @IsOptional()
-  timezone?: string;
+  defaultTimezone?: string;
 
   @ApiPropertyOptional({ example: 'en-US', default: 'en-US' })
   @IsString()
   @IsOptional()
-  locale?: string;
+  defaultLocale?: string;
 }
 
 export class InstallationSetupDto {
@@ -85,9 +54,9 @@ export class InstallationSetupDto {
   @IsNotEmpty()
   administrator: AdminSetupDto;
 
-  @ApiProperty({ type: OrganizationSetupDto })
+  @ApiPropertyOptional({ type: SystemSetupDto })
   @ValidateNested()
-  @Type(() => OrganizationSetupDto)
-  @IsNotEmpty()
-  organization: OrganizationSetupDto;
+  @Type(() => SystemSetupDto)
+  @IsOptional()
+  settings?: SystemSetupDto;
 }

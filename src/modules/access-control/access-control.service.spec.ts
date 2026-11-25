@@ -319,7 +319,7 @@ describe('AccessControlService', () => {
         exec: jest.fn().mockResolvedValue({
           code: Role.ADMIN,
           isActive: true,
-          permissions: ['users.read', 'organization.read'],
+          permissions: ['users.read', 'settings.read'],
         }),
       });
 

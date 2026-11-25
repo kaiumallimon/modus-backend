@@ -61,7 +61,7 @@ describe('UsersService', () => {
         code: Role.EMPLOYEE,
         name: 'Employee',
         isActive: true,
-        permissions: ['organization.read'],
+        permissions: [],
       }),
       getAllPermissions: jest.fn().mockReturnValue([
         { id: 'users.read', name: 'Read users' },

@@ -25,10 +25,6 @@ export const MODULE_NAMES: Record<string, { name: string; description: string }>
     name: 'System Settings',
     description: 'Application-level preferences, formatting, and defaults',
   },
-  'organization-settings': {
-    name: 'Organization Profile & Settings',
-    description: 'Single-organization configuration, address, currency, and locale',
-  },
   'module-registry': {
     name: 'Module Registry',
     description: 'Inspect and manage activation of integrated core and business modules',
@@ -122,19 +118,6 @@ export const CORE_PERMISSIONS: PermissionDefinition[] = [
     module: 'system-settings',
   },
 
-  // Organization
-  {
-    id: 'organization.read',
-    name: 'View Organization Profile',
-    description: 'Read organization information, contact, and settings',
-    module: 'organization-settings',
-  },
-  {
-    id: 'organization.update',
-    name: 'Update Organization Profile',
-    description: 'Modify organization information, address, and localization',
-    module: 'organization-settings',
-  },
 
   // Modules
   {

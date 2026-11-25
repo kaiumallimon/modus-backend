@@ -14,7 +14,6 @@ import {
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 import { AccessControlService } from '../access-control/access-control.service';
-import { OrganizationService } from '../organization/organization.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -31,7 +30,6 @@ export class InstallationService {
     private readonly usersService: UsersService,
     private readonly authService: AuthService,
     private readonly accessControlService: AccessControlService,
-    private readonly organizationService: OrganizationService,
     private readonly systemSettingsService: SystemSettingsService,
     private readonly moduleRegistryService: ModuleRegistryService,
     private readonly auditLogService: AuditLogService,
@@ -108,16 +106,11 @@ export class InstallationService {
     // 4. Initialize core modules
     await this.moduleRegistryService.initializeCoreModules();
 
-    // 5. Initialize organization settings
-    const org = await this.organizationService.getOrCreateSettings(
-      dto.organization,
-    );
-
-    // 6. Initialize system settings
-    await this.systemSettingsService.getOrCreateSettings({
-      defaultCurrency: dto.organization.currency || 'USD',
-      defaultTimezone: dto.organization.timezone || 'UTC',
-      defaultLocale: dto.organization.locale || 'en-US',
+    // 5. Initialize system settings
+    const systemSettings = await this.systemSettingsService.getOrCreateSettings({
+      defaultCurrency: dto.settings?.defaultCurrency || 'USD',
+      defaultTimezone: dto.settings?.defaultTimezone || 'UTC',
+      defaultLocale: dto.settings?.defaultLocale || 'en-US',
     });
 
     // 7. Create Super Admin user
@@ -164,10 +157,12 @@ export class InstallationService {
       action: 'INITIAL_SETUP_COMPLETED',
       resource: 'installation',
       resourceId: state._id.toString(),
-      description: `Initial installation setup completed for organization "${org.name}"`,
+      description: 'Initial installation setup completed',
       metadata: {
-        organizationName: org.name,
         adminEmail: adminUser.email,
+        defaultCurrency: systemSettings.defaultCurrency,
+        defaultTimezone: systemSettings.defaultTimezone,
+        defaultLocale: systemSettings.defaultLocale,
         version: '1.0.0',
       },
       ipAddress,
@@ -185,10 +180,10 @@ export class InstallationService {
         lastName: adminUser.lastName,
         role: adminUser.role,
       },
-      organization: {
-        name: org.name,
-        email: org.email,
-        currency: org.currency,
+      settings: {
+        defaultCurrency: systemSettings.defaultCurrency,
+        defaultTimezone: systemSettings.defaultTimezone,
+        defaultLocale: systemSettings.defaultLocale,
       },
       tokens,
     };

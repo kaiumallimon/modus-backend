@@ -111,13 +111,6 @@ export class ModuleRegistryService {
         dependencies: ['users'],
       },
       {
-        id: 'organization-settings',
-        name: 'Organization Profile & Settings',
-        description: 'Installation-wide single organization profile, contact, and localization info',
-        version: '1.0.0',
-        isCore: true,
-      },
-      {
         id: 'system-settings',
         name: 'System Settings',
         description: 'Global application preferences, formatting rules, and system behavior',

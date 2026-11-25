@@ -38,7 +38,7 @@ export class CreateRoleDto {
   description?: string;
 
   @ApiPropertyOptional({
-    example: ['users.read', 'organization.read'],
+    example: ['users.read', 'modules.read'],
     description: 'List of permission identifiers granted to this role',
     type: [String],
   })

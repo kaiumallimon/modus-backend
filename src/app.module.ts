@@ -12,7 +12,6 @@ import { MailModule } from './modules/mail/mail.module';
 import { InstallationModule } from './modules/installation/installation.module';
 import { AccessControlModule } from './modules/access-control/access-control.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
-import { OrganizationModule } from './modules/organization/organization.module';
 import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 import { ModuleRegistryModule } from './modules/module-registry/module-registry.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -79,7 +78,6 @@ import { envValidationSchema } from './config/env.validation';
     InstallationModule,
     AccessControlModule,
     AuditLogModule,
-    OrganizationModule,
     SystemSettingsModule,
     ModuleRegistryModule,
     StorageModule,

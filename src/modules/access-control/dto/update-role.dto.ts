@@ -25,7 +25,7 @@ export class UpdateRoleDto {
   description?: string;
 
   @ApiPropertyOptional({
-    example: ['users.read', 'organization.read', 'modules.read'],
+    example: ['users.read', 'modules.read'],
     description: 'List of permission identifiers granted to this role',
     type: [String],
   })

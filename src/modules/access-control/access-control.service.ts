@@ -139,8 +139,6 @@ export class AccessControlService {
           'users.update',
           'roles.read',
           'settings.read',
-          'organization.read',
-          'organization.update',
           'modules.read',
           'audit.read',
         ],
@@ -152,7 +150,6 @@ export class AccessControlService {
         isSystem: true,
         permissions: [
           'users.read',
-          'organization.read',
           'modules.read',
           'audit.read',
         ],
@@ -162,7 +159,7 @@ export class AccessControlService {
         name: 'Employee',
         description: 'Standard staff member with limited permissions',
         isSystem: true,
-        permissions: ['organization.read'],
+        permissions: [],
       },
     ];
 
