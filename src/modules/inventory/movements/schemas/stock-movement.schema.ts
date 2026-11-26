@@ -14,12 +14,14 @@ export enum StockMovementType {
   TRANSFER_IN = 'TRANSFER_IN',
   TRANSFER_OUT = 'TRANSFER_OUT',
   PURCHASE_RECEIPT = 'PURCHASE_RECEIPT',
+  SALE_FULFILLMENT = 'SALE_FULFILLMENT',
 }
 
 export enum MovementReferenceType {
   ADJUSTMENT = 'ADJUSTMENT',
   TRANSFER = 'TRANSFER',
   GOODS_RECEIPT = 'GOODS_RECEIPT',
+  SALES_FULFILLMENT = 'SALES_FULFILLMENT',
 }
 
 export type StockMovementDocument = HydratedDocument<StockMovement>;

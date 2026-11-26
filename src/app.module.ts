@@ -17,6 +17,7 @@ import { ModuleRegistryModule } from './modules/module-registry/module-registry.
 import { StorageModule } from './modules/storage/storage.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -85,6 +86,7 @@ import { envValidationSchema } from './config/env.validation';
     StorageModule,
     InventoryModule,
     ProcurementModule,
+    SalesModule,
   ],
   controllers: [AppController],
   providers: [
