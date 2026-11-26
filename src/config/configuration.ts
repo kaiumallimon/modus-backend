@@ -5,6 +5,7 @@ export default () => ({
     port: parseInt(process.env.PORT || '3000', 10),
     url: process.env.APP_URL || `http://localhost:${process.env.PORT || '3000'}`,
     apiPrefix: process.env.API_PREFIX || 'api/v1',
+    currency: process.env.APP_CURRENCY || 'USD',
   },
 
   database: {

@@ -16,21 +16,23 @@ export class ModuleActiveGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredModule = this.reflector.getAllAndOverride<string>(
+    const raw = this.reflector.getAllAndOverride<string | string[]>(
       REQUIRE_MODULE_KEY,
       [context.getHandler(), context.getClass()],
     );
 
-    if (!requiredModule) {
+    if (!raw || (Array.isArray(raw) && raw.length === 0)) {
       return true;
     }
 
-    const active =
-      await this.moduleRegistryService.isModuleActive(requiredModule);
-    if (!active) {
-      throw new ForbiddenException(
-        `Module "${requiredModule}" is currently deactivated for this installation`,
-      );
+    const requiredModules = Array.isArray(raw) ? raw : [raw];
+    for (const moduleId of requiredModules) {
+      const active = await this.moduleRegistryService.isModuleActive(moduleId);
+      if (!active) {
+        throw new ForbiddenException(
+          `Module "${moduleId}" is currently deactivated for this installation`,
+        );
+      }
     }
 
     return true;

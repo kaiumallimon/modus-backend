@@ -100,6 +100,7 @@ import { InventoryDashboardController } from './dashboard/dashboard.controller';
     InventoryDashboardService,
   ],
   exports: [
+    MongooseModule,
     CategoriesService,
     UnitsService,
     WarehousesService,
