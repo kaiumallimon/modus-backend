@@ -20,8 +20,10 @@ export interface ModusModuleDefinition {
   description: string;
   version: string;
   isCore?: boolean;
+  defaultActivated?: boolean;
   dependencies?: string[];
   permissions?: PermissionDefinition[];
+  permissionGroups?: Record<string, { name: string; description: string }>;
 }
 
 @Injectable()
@@ -40,26 +42,34 @@ export class ModuleRegistryService {
 
     // Register permissions with RBAC service
     if (def.permissions && def.permissions.length > 0) {
-      this.accessControlService.registerPermissions(def.permissions);
+      if (def.permissionGroups) {
+        this.accessControlService.registerPermissions(
+          def.permissions,
+          def.permissionGroups,
+        );
+      } else {
+        this.accessControlService.registerPermissions(def.permissions);
+      }
     }
 
     let existing = await this.moduleModel.findOne({ id: moduleId }).exec();
 
     if (!existing) {
+      const initialActive = Boolean(def.isCore || def.defaultActivated);
       existing = await this.moduleModel.create({
         id: moduleId,
         name: def.name,
         description: def.description,
         version: def.version,
         isCore: Boolean(def.isCore),
-        isActivated: Boolean(def.isCore), // Core modules activate immediately
+        isActivated: initialActive,
         dependencies: def.dependencies || [],
         permissions: def.permissions?.map((p) => ({
           id: p.id,
           name: p.name,
           description: p.description,
         })) || [],
-        activatedAt: def.isCore ? new Date() : null,
+        activatedAt: initialActive ? new Date() : null,
       });
       this.logger.log(`Registered module: ${def.name} (${moduleId})`);
     } else {
@@ -133,6 +143,30 @@ export class ModuleRegistryService {
 
   async getModules(): Promise<ModuleRegistrationDocument[]> {
     return this.moduleModel.find().sort({ isCore: -1, id: 1 }).exec();
+  }
+
+  async getActiveModules(): Promise<
+    Array<{ id: string; name: string; isCore: boolean; isActivated: boolean }>
+  > {
+    const active = await this.moduleModel
+      .find({ isActivated: true })
+      .select('id name isCore isActivated')
+      .sort({ isCore: -1, id: 1 })
+      .exec();
+    return active.map((m) => ({
+      id: m.id,
+      name: m.name,
+      isCore: m.isCore,
+      isActivated: m.isActivated,
+    }));
+  }
+
+  async isModuleActive(id: string): Promise<boolean> {
+    const mod = await this.moduleModel
+      .findOne({ id: id.toLowerCase().trim() })
+      .select('isActivated')
+      .exec();
+    return Boolean(mod?.isActivated);
   }
 
   async getModuleById(id: string): Promise<ModuleRegistrationDocument> {

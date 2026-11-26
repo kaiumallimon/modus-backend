@@ -121,7 +121,11 @@ export class AuthController {
   logout(@CurrentUser('userId') userId: string, @Req() req?: Request) {
     const ipAddress = req?.ip || req?.socket?.remoteAddress;
     const userAgent = req?.headers ? req.headers['user-agent'] : undefined;
-    return this.authService.logout(userId, ipAddress, userAgent);
+    const sid = (req as (Request & { user?: { sid?: string } }) | undefined)
+      ?.user?.sid;
+    return sid
+      ? this.authService.logout(userId, ipAddress, userAgent, sid)
+      : this.authService.logout(userId, ipAddress, userAgent);
   }
 
   @Post('change-password')

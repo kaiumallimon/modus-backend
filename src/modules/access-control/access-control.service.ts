@@ -56,6 +56,8 @@ export interface AccessControlDashboardStats {
 export class AccessControlService {
   private readonly logger = new Logger(AccessControlService.name);
   private dynamicPermissions: Map<string, PermissionDefinition> = new Map();
+  private dynamicModuleMeta: Map<string, { name: string; description: string }> =
+    new Map();
 
   constructor(
     @InjectModel(RoleEntity.name)
@@ -70,9 +72,17 @@ export class AccessControlService {
     }
   }
 
-  registerPermissions(permissions: PermissionDefinition[]): void {
+  registerPermissions(
+    permissions: PermissionDefinition[],
+    moduleGroups?: Record<string, { name: string; description: string }>,
+  ): void {
     for (const perm of permissions) {
       this.dynamicPermissions.set(perm.id, perm);
+    }
+    if (moduleGroups) {
+      for (const [key, meta] of Object.entries(moduleGroups)) {
+        this.dynamicModuleMeta.set(key, meta);
+      }
     }
     this.logger.log(
       `Registered ${permissions.length} module permissions into AccessControl`,
@@ -96,10 +106,12 @@ export class AccessControlService {
 
     const result: ModulePermissionsGroup[] = [];
     for (const [moduleKey, perms] of groupsMap.entries()) {
-      const meta = MODULE_NAMES[moduleKey] || {
-        name: moduleKey.charAt(0).toUpperCase() + moduleKey.slice(1),
-        description: `Permissions for ${moduleKey} module`,
-      };
+      const meta =
+        MODULE_NAMES[moduleKey] ||
+        this.dynamicModuleMeta.get(moduleKey) || {
+          name: moduleKey.charAt(0).toUpperCase() + moduleKey.slice(1),
+          description: `Permissions for ${moduleKey} module`,
+        };
       result.push({
         module: moduleKey,
         moduleName: meta.name,

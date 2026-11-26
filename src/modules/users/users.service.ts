@@ -10,7 +10,7 @@ import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model, Types } from 'mongoose';
 import * as argon2 from 'argon2';
 import { promises as dns } from 'dns';
-import { User, UserDocument } from './schemas/user.schema';
+import { RefreshSession, User, UserDocument } from './schemas/user.schema';
 import { Role } from './enums/role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -122,6 +122,88 @@ export class UsersService {
   ): Promise<UserDocument | null> {
     return this.userModel
       .findByIdAndUpdate(userId, { hashedRefreshToken }, { new: true })
+      .exec();
+  }
+
+  async addRefreshSession(
+    userId: string,
+    session: RefreshSession,
+    maxSessions = 15,
+  ): Promise<UserDocument | null> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) return null;
+
+    const now = new Date();
+    const active = (user.refreshSessions || []).filter(
+      (s) => s.sid !== session.sid && new Date(s.expiresAt) > now,
+    );
+    active.push(session);
+
+    const bounded =
+      active.length > maxSessions ? active.slice(active.length - maxSessions) : active;
+
+    user.refreshSessions = bounded;
+    user.hashedRefreshToken = session.tokenHash;
+    return user.save();
+  }
+
+  async updateRefreshSession(
+    userId: string,
+    sid: string,
+    updates: Partial<RefreshSession>,
+  ): Promise<UserDocument | null> {
+    const setPayload: Record<string, unknown> = {};
+    if (updates.tokenHash !== undefined) {
+      setPayload['refreshSessions.$.tokenHash'] = updates.tokenHash;
+      setPayload.hashedRefreshToken = updates.tokenHash;
+    }
+    if (updates.previousTokenHash !== undefined) {
+      setPayload['refreshSessions.$.previousTokenHash'] = updates.previousTokenHash;
+    }
+    if (updates.rotatedAt !== undefined) {
+      setPayload['refreshSessions.$.rotatedAt'] = updates.rotatedAt;
+    }
+    if (updates.expiresAt !== undefined) {
+      setPayload['refreshSessions.$.expiresAt'] = updates.expiresAt;
+    }
+    if (updates.lastUsedAt !== undefined) {
+      setPayload['refreshSessions.$.lastUsedAt'] = updates.lastUsedAt;
+    }
+
+    return this.userModel
+      .findOneAndUpdate(
+        { _id: userId, 'refreshSessions.sid': sid },
+        { $set: setPayload },
+        { new: true },
+      )
+      .exec();
+  }
+
+  async revokeRefreshSession(
+    userId: string,
+    sid: string,
+  ): Promise<UserDocument | null> {
+    const updated = await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { $pull: { refreshSessions: { sid } } },
+        { new: true },
+      )
+      .exec();
+    if (updated && (!updated.refreshSessions || updated.refreshSessions.length === 0)) {
+      updated.hashedRefreshToken = null;
+      return updated.save();
+    }
+    return updated;
+  }
+
+  async revokeAllRefreshSessions(userId: string): Promise<UserDocument | null> {
+    return this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { $set: { refreshSessions: [], hashedRefreshToken: null } },
+        { new: true },
+      )
       .exec();
   }
 
@@ -604,6 +686,7 @@ export class UsersService {
     targetUser.isActive = dto.isActive;
     if (!dto.isActive) {
       targetUser.hashedRefreshToken = null;
+      targetUser.refreshSessions = [];
     }
 
     await targetUser.save();

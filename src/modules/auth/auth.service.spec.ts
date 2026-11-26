@@ -30,6 +30,10 @@ describe('AuthService', () => {
       findByResetTokenHash: jest.fn(),
       create: jest.fn(),
       updateHashedRefreshToken: jest.fn(),
+      addRefreshSession: jest.fn(),
+      updateRefreshSession: jest.fn(),
+      revokeRefreshSession: jest.fn(),
+      revokeAllRefreshSessions: jest.fn(),
       generateUniqueHumanId: jest.fn().mockResolvedValue('MOD-10001'),
     };
 
@@ -296,6 +300,195 @@ describe('AuthService', () => {
       expect(mockUser.hashedRefreshToken).toBeNull();
       expect(mockUser.save).toHaveBeenCalled();
       expect(result.message).toContain('Password has been reset successfully');
+    });
+  });
+
+  describe('refreshTokens & session management', () => {
+    it('rotates tokens for a matching active session without affecting other sessions', async () => {
+      mockJwtService.verifyAsync!.mockResolvedValue({
+        sub: 'user123',
+        email: 'admin@modus.local',
+        role: Role.SUPER_ADMIN,
+        sid: 'sid-1',
+      });
+      mockUsersService.findById!.mockResolvedValue({
+        _id: 'user123',
+        email: 'admin@modus.local',
+        role: Role.SUPER_ADMIN,
+        isActive: true,
+        refreshSessions: [
+          {
+            sid: 'sid-1',
+            tokenHash: 'hash-1',
+            previousTokenHash: null,
+            rotatedAt: null,
+            expiresAt: new Date(Date.now() + 3600_000),
+          },
+          {
+            sid: 'sid-2',
+            tokenHash: 'hash-2',
+            previousTokenHash: null,
+            rotatedAt: null,
+            expiresAt: new Date(Date.now() + 3600_000),
+          },
+        ],
+      });
+
+      const verifySpy = jest
+        .spyOn(authService, 'verifyHash')
+        .mockResolvedValueOnce(true);
+      jest.spyOn(authService, 'hashData').mockResolvedValueOnce('new-hash-1');
+      jest.spyOn(authService, 'generateTokens').mockResolvedValueOnce({
+        accessToken: 'new-access-1',
+        refreshToken: 'new-refresh-1',
+      });
+
+      const result = await authService.refreshTokens('old-refresh-1');
+
+      expect(verifySpy).toHaveBeenCalledWith('hash-1', 'old-refresh-1');
+      expect(mockUsersService.updateRefreshSession).toHaveBeenCalledWith(
+        'user123',
+        'sid-1',
+        expect.objectContaining({
+          tokenHash: 'new-hash-1',
+          previousTokenHash: 'hash-1',
+        }),
+      );
+      expect(mockUsersService.revokeRefreshSession).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        accessToken: 'new-access-1',
+        refreshToken: 'new-refresh-1',
+      });
+    });
+
+    it('accepts immediately prior token within 15s rotation grace window', async () => {
+      mockJwtService.verifyAsync!.mockResolvedValue({
+        sub: 'user123',
+        email: 'admin@modus.local',
+        role: Role.SUPER_ADMIN,
+        sid: 'sid-1',
+      });
+      mockUsersService.findById!.mockResolvedValue({
+        _id: 'user123',
+        email: 'admin@modus.local',
+        role: Role.SUPER_ADMIN,
+        isActive: true,
+        refreshSessions: [
+          {
+            sid: 'sid-1',
+            tokenHash: 'current-hash',
+            previousTokenHash: 'prev-hash',
+            rotatedAt: new Date(Date.now() - 2_000),
+            expiresAt: new Date(Date.now() + 3600_000),
+          },
+        ],
+      });
+
+      jest
+        .spyOn(authService, 'verifyHash')
+        .mockResolvedValueOnce(false) // current-hash mismatch
+        .mockResolvedValueOnce(true); // prev-hash match within grace window
+      jest.spyOn(authService, 'hashData').mockResolvedValueOnce('grace-hash');
+      jest.spyOn(authService, 'generateTokens').mockResolvedValueOnce({
+        accessToken: 'grace-access',
+        refreshToken: 'grace-refresh',
+      });
+
+      const result = await authService.refreshTokens('prev-refresh-token');
+
+      expect(result).toEqual({
+        accessToken: 'grace-access',
+        refreshToken: 'grace-refresh',
+      });
+      expect(mockUsersService.revokeRefreshSession).not.toHaveBeenCalled();
+    });
+
+    it('revokes only the reused session when replayed outside the grace window', async () => {
+      mockJwtService.verifyAsync!.mockResolvedValue({
+        sub: 'user123',
+        email: 'admin@modus.local',
+        role: Role.SUPER_ADMIN,
+        sid: 'sid-1',
+      });
+      mockUsersService.findById!.mockResolvedValue({
+        _id: 'user123',
+        email: 'admin@modus.local',
+        role: Role.SUPER_ADMIN,
+        isActive: true,
+        refreshSessions: [
+          {
+            sid: 'sid-1',
+            tokenHash: 'current-hash',
+            previousTokenHash: 'stale-prev-hash',
+            rotatedAt: new Date(Date.now() - 60_000), // outside 15s grace
+            expiresAt: new Date(Date.now() + 3600_000),
+          },
+        ],
+      });
+
+      jest.spyOn(authService, 'verifyHash').mockResolvedValue(false);
+
+      await expect(authService.refreshTokens('reused-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockUsersService.revokeRefreshSession).toHaveBeenCalledWith(
+        'user123',
+        'sid-1',
+      );
+      expect(mockUsersService.revokeAllRefreshSessions).not.toHaveBeenCalled();
+    });
+
+    it('upgrades legacy single hashedRefreshToken into session list on refresh', async () => {
+      mockJwtService.verifyAsync!.mockResolvedValue({
+        sub: 'user123',
+        email: 'admin@modus.local',
+        role: Role.SUPER_ADMIN,
+      });
+      mockUsersService.findById!.mockResolvedValue({
+        _id: 'user123',
+        email: 'admin@modus.local',
+        role: Role.SUPER_ADMIN,
+        isActive: true,
+        hashedRefreshToken: 'legacy-hash',
+        refreshSessions: [],
+      });
+
+      jest.spyOn(authService, 'verifyHash').mockResolvedValueOnce(true);
+      jest.spyOn(authService, 'hashData').mockResolvedValueOnce('upgraded-hash');
+      jest.spyOn(authService, 'generateTokens').mockResolvedValueOnce({
+        accessToken: 'upgraded-access',
+        refreshToken: 'upgraded-refresh',
+      });
+
+      const result = await authService.refreshTokens('legacy-refresh');
+
+      expect(mockUsersService.addRefreshSession).toHaveBeenCalledWith(
+        'user123',
+        expect.objectContaining({
+          tokenHash: 'upgraded-hash',
+        }),
+      );
+      expect(result).toEqual({
+        accessToken: 'upgraded-access',
+        refreshToken: 'upgraded-refresh',
+      });
+    });
+
+    it('revokes only current session on logout when sid is supplied', async () => {
+      mockUsersService.findById!.mockResolvedValue({
+        _id: 'user123',
+        email: 'admin@modus.local',
+        humanId: 'MOD-10001',
+        role: Role.SUPER_ADMIN,
+      });
+
+      await authService.logout('user123', '127.0.0.1', 'Mozilla', 'sid-1');
+
+      expect(mockUsersService.revokeRefreshSession).toHaveBeenCalledWith(
+        'user123',
+        'sid-1',
+      );
+      expect(mockUsersService.revokeAllRefreshSessions).not.toHaveBeenCalled();
     });
   });
 });

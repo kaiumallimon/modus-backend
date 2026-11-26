@@ -43,6 +43,18 @@ export class ModuleRegistryController {
     return this.moduleService.getModules();
   }
 
+  @Get('active')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'List activated module identifiers for authenticated navigation',
+    description:
+      'Allows any authenticated user to inspect which modules are currently active so sidebar navigation and feature gates follow installation-wide module activation.',
+  })
+  @ApiResponse({ status: 200, description: 'Active module summaries returned' })
+  getActiveModules() {
+    return this.moduleService.getActiveModules();
+  }
+
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @RequirePermissions('modules.read')

@@ -50,15 +50,67 @@ export class AuthService {
     }
   }
 
+  private parseDurationMs(ttl: string | undefined, fallbackMs: number): number {
+    if (!ttl) return fallbackMs;
+    const match = String(ttl).trim().match(/^(\d+)\s*([smhd])?$/i);
+    if (!match) return fallbackMs;
+    const amount = Number(match[1]);
+    const unit = (match[2] || 's').toLowerCase();
+    const multipliers: Record<string, number> = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+    };
+    return amount * (multipliers[unit] || 1000);
+  }
+
+  private getRefreshExpiryDate(): Date {
+    const refreshExpiresIn =
+      this.configService.get<string>('jwt.refreshExpiresIn') ||
+      this.configService.get<string>('jwt.refreshExpireIn') ||
+      '7d';
+    return new Date(
+      Date.now() +
+        this.parseDurationMs(refreshExpiresIn, 7 * 24 * 60 * 60 * 1000),
+    );
+  }
+
+  private async persistNewSession(
+    userId: string,
+    sid: string,
+    hashedRefreshToken: string,
+  ): Promise<void> {
+    if (typeof this.usersService.addRefreshSession === 'function') {
+      const now = new Date();
+      await this.usersService.addRefreshSession(userId, {
+        sid,
+        tokenHash: hashedRefreshToken,
+        previousTokenHash: null,
+        rotatedAt: null,
+        expiresAt: this.getRefreshExpiryDate(),
+        createdAt: now,
+        lastUsedAt: now,
+      });
+    } else {
+      await this.usersService.updateHashedRefreshToken(
+        userId,
+        hashedRefreshToken,
+      );
+    }
+  }
+
   async generateTokens(
     userId: string,
     email: string,
     role: Role | string,
+    sid: string = crypto.randomUUID(),
   ): Promise<AuthTokens> {
     const jwtPayload = {
       sub: userId,
       email,
       role,
+      sid,
     };
 
     const accessSecret =
@@ -117,15 +169,18 @@ export class AuthService {
       hashedRefreshToken: null,
     });
 
+    const sid = crypto.randomUUID();
     const tokens = await this.generateTokens(
       newUser._id.toString(),
       newUser.email,
       newUser.role,
+      sid,
     );
 
     const hashedRefreshToken = await this.hashData(tokens.refreshToken);
-    await this.usersService.updateHashedRefreshToken(
+    await this.persistNewSession(
       newUser._id.toString(),
+      sid,
       hashedRefreshToken,
     );
 
@@ -204,15 +259,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email/ID or password');
     }
 
+    const sid = crypto.randomUUID();
     const tokens = await this.generateTokens(
       user._id.toString(),
       user.email,
       user.role,
+      sid,
     );
 
     const hashedRefreshToken = await this.hashData(tokens.refreshToken);
-    await this.usersService.updateHashedRefreshToken(
+    await this.persistNewSession(
       user._id.toString(),
+      sid,
       hashedRefreshToken,
     );
 
@@ -247,7 +305,7 @@ export class AuthService {
   }
 
   async refreshTokens(refreshToken: string) {
-    let payload: { sub: string; email: string; role: Role };
+    let payload: { sub: string; email: string; role: Role; sid?: string };
     try {
       payload = await this.jwtService.verifyAsync(refreshToken, {
         secret: this.configService.getOrThrow<string>('jwt.refreshSecret'),
@@ -257,37 +315,140 @@ export class AuthService {
     }
 
     const user = await this.usersService.findById(payload.sub);
-    if (!user || !user.isActive || !user.hashedRefreshToken) {
+    if (!user || !user.isActive) {
       throw new UnauthorizedException('Access denied');
     }
 
-    const isRefreshTokenValid = await this.verifyHash(
-      user.hashedRefreshToken,
-      refreshToken,
-    );
+    const userId = user._id.toString();
+    const sessions = Array.isArray(user.refreshSessions)
+      ? user.refreshSessions
+      : [];
+    const matchedSession = payload.sid
+      ? sessions.find((s) => s.sid === payload.sid)
+      : undefined;
 
-    if (!isRefreshTokenValid) {
-      // Refresh token reuse / tampering detected: invalidate stored token immediately
-      await this.usersService.updateHashedRefreshToken(
-        user._id.toString(),
-        null,
+    if (matchedSession) {
+      if (
+        matchedSession.expiresAt &&
+        new Date() > new Date(matchedSession.expiresAt)
+      ) {
+        if (typeof this.usersService.revokeRefreshSession === 'function') {
+          await this.usersService.revokeRefreshSession(userId, matchedSession.sid);
+        }
+        throw new UnauthorizedException('Refresh session has expired');
+      }
+
+      const isCurrentValid = await this.verifyHash(
+        matchedSession.tokenHash,
+        refreshToken,
       );
+
+      if (isCurrentValid) {
+        const tokens = await this.generateTokens(
+          userId,
+          user.email,
+          user.role,
+          matchedSession.sid,
+        );
+        const newHashedRefreshToken = await this.hashData(tokens.refreshToken);
+        const now = new Date();
+
+        if (typeof this.usersService.updateRefreshSession === 'function') {
+          await this.usersService.updateRefreshSession(
+            userId,
+            matchedSession.sid,
+            {
+              tokenHash: newHashedRefreshToken,
+              previousTokenHash: matchedSession.tokenHash,
+              rotatedAt: now,
+              lastUsedAt: now,
+              expiresAt: this.getRefreshExpiryDate(),
+            },
+          );
+        } else {
+          await this.usersService.updateHashedRefreshToken(
+            userId,
+            newHashedRefreshToken,
+          );
+        }
+
+        return tokens;
+      }
+
+      // Allow short 15s rotation grace window for parallel/dropped-response retries
+      const rotatedAtMs = matchedSession.rotatedAt
+        ? new Date(matchedSession.rotatedAt).getTime()
+        : 0;
+      const withinGraceWindow =
+        Boolean(matchedSession.previousTokenHash) &&
+        rotatedAtMs > 0 &&
+        Date.now() - rotatedAtMs <= 15_000;
+
+      if (
+        withinGraceWindow &&
+        (await this.verifyHash(matchedSession.previousTokenHash!, refreshToken))
+      ) {
+        const tokens = await this.generateTokens(
+          userId,
+          user.email,
+          user.role,
+          matchedSession.sid,
+        );
+        const newHashedRefreshToken = await this.hashData(tokens.refreshToken);
+        const now = new Date();
+
+        if (typeof this.usersService.updateRefreshSession === 'function') {
+          await this.usersService.updateRefreshSession(
+            userId,
+            matchedSession.sid,
+            {
+              tokenHash: newHashedRefreshToken,
+              lastUsedAt: now,
+              expiresAt: this.getRefreshExpiryDate(),
+            },
+          );
+        }
+        return tokens;
+      }
+
+      // Outside grace window: possible token reuse — revoke only this compromised session
+      if (typeof this.usersService.revokeRefreshSession === 'function') {
+        await this.usersService.revokeRefreshSession(userId, matchedSession.sid);
+      } else {
+        await this.usersService.updateHashedRefreshToken(userId, null);
+      }
       throw new UnauthorizedException(
         'Access denied: refresh token reuse detected or invalid token',
       );
     }
 
+    // Legacy fallback for tokens minted before per-session tracking
+    if (!user.hashedRefreshToken) {
+      throw new UnauthorizedException('Access denied');
+    }
+
+    const isLegacyRefreshValid = await this.verifyHash(
+      user.hashedRefreshToken,
+      refreshToken,
+    );
+
+    if (!isLegacyRefreshValid) {
+      await this.usersService.updateHashedRefreshToken(userId, null);
+      throw new UnauthorizedException(
+        'Access denied: refresh token reuse detected or invalid token',
+      );
+    }
+
+    const upgradedSid = payload.sid || crypto.randomUUID();
     const tokens = await this.generateTokens(
-      user._id.toString(),
+      userId,
       user.email,
       user.role,
+      upgradedSid,
     );
 
     const newHashedRefreshToken = await this.hashData(tokens.refreshToken);
-    await this.usersService.updateHashedRefreshToken(
-      user._id.toString(),
-      newHashedRefreshToken,
-    );
+    await this.persistNewSession(userId, upgradedSid, newHashedRefreshToken);
 
     return tokens;
   }
@@ -296,9 +457,16 @@ export class AuthService {
     userId: string,
     ipAddress?: string,
     userAgent?: string,
+    sid?: string,
   ) {
     const user = await this.usersService.findById(userId);
-    await this.usersService.updateHashedRefreshToken(userId, null);
+    if (sid && typeof this.usersService.revokeRefreshSession === 'function') {
+      await this.usersService.revokeRefreshSession(userId, sid);
+    } else if (typeof this.usersService.revokeAllRefreshSessions === 'function') {
+      await this.usersService.revokeAllRefreshSessions(userId);
+    } else {
+      await this.usersService.updateHashedRefreshToken(userId, null);
+    }
 
     if (user) {
       await this.auditLogService.record({
@@ -345,6 +513,7 @@ export class AuthService {
     user.passwordHash = await this.hashData(dto.newPassword);
     // Invalidate existing sessions on password change
     user.hashedRefreshToken = null;
+    user.refreshSessions = [];
     await user.save();
 
     await this.auditLogService.record({
@@ -430,6 +599,7 @@ export class AuthService {
 
     // Revoke all active login refresh tokens
     user.hashedRefreshToken = null;
+    user.refreshSessions = [];
     await user.save();
 
     await this.auditLogService.record({

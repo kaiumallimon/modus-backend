@@ -4,6 +4,33 @@ import { Role } from '../enums/role.enum';
 
 export type UserDocument = HydratedDocument<User>;
 
+@Schema({ _id: false })
+export class RefreshSession {
+  @Prop({ type: String, required: true })
+  sid: string;
+
+  @Prop({ type: String, required: true })
+  tokenHash: string;
+
+  @Prop({ type: String, default: null })
+  previousTokenHash?: string | null;
+
+  @Prop({ type: Date, default: null })
+  rotatedAt?: Date | null;
+
+  @Prop({ type: Date, required: true })
+  expiresAt: Date;
+
+  @Prop({ type: Date, required: true })
+  createdAt: Date;
+
+  @Prop({ type: Date, required: true })
+  lastUsedAt: Date;
+}
+
+export const RefreshSessionSchema =
+  SchemaFactory.createForClass(RefreshSession);
+
 @Schema({ timestamps: true })
 export class User {
   @Prop({
@@ -74,6 +101,12 @@ export class User {
     default: null,
   })
   hashedRefreshToken: string | null;
+
+  @Prop({
+    type: [RefreshSessionSchema],
+    default: [],
+  })
+  refreshSessions: RefreshSession[];
 
   @Prop({
     type: String,

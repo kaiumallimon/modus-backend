@@ -5,7 +5,10 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
+import {
+  ANY_PERMISSIONS_KEY,
+  PERMISSIONS_KEY,
+} from '../decorators/permissions.decorator';
 import { Role } from '../../modules/users/enums/role.enum';
 import { AccessControlService } from '../../modules/access-control/access-control.service';
 
@@ -21,8 +24,15 @@ export class PermissionsGuard implements CanActivate {
       PERMISSIONS_KEY,
       [context.getHandler(), context.getClass()],
     );
+    const anyPermissions = this.reflector.getAllAndOverride<string[]>(
+      ANY_PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    if (!requiredPermissions || requiredPermissions.length === 0) {
+    if (
+      (!requiredPermissions || requiredPermissions.length === 0) &&
+      (!anyPermissions || anyPermissions.length === 0)
+    ) {
       return true;
     }
 
@@ -36,14 +46,36 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    for (const permission of requiredPermissions) {
-      const granted = await this.accessControlService.hasPermission(
-        user.role as string,
-        permission,
-      );
-      if (!granted) {
+    if (requiredPermissions && requiredPermissions.length > 0) {
+      for (const permission of requiredPermissions) {
+        const granted = await this.accessControlService.hasPermission(
+          user.role as string,
+          permission,
+        );
+        if (!granted) {
+          throw new ForbiddenException(
+            `Access denied: missing required permission "${permission}"`,
+          );
+        }
+      }
+    }
+
+    if (anyPermissions && anyPermissions.length > 0) {
+      let grantedAny = false;
+      for (const permission of anyPermissions) {
+        if (
+          await this.accessControlService.hasPermission(
+            user.role as string,
+            permission,
+          )
+        ) {
+          grantedAny = true;
+          break;
+        }
+      }
+      if (!grantedAny) {
         throw new ForbiddenException(
-          `Access denied: missing required permission "${permission}"`,
+          `Access denied: requires at least one of [${anyPermissions.join(', ')}]`,
         );
       }
     }
